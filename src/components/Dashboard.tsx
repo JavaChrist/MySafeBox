@@ -81,7 +81,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
-              <FolderOpen className="h-8 w-8 text-blue-500" />
+              <img
+                src="/MySafeBoxHeader.png"
+                alt="MySafeBox Logo"
+                className="h-20 w-20 object-contain"
+              />
               <div>
                 <h1 className="text-xl font-semibold text-white">MySafeBox</h1>
                 <p className="text-sm text-gray-400">Coffre-fort de {user.username}</p>

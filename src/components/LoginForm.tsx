@@ -172,9 +172,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
           <img
-            src="/MySafeBox.png"
+            src="/MySafeBoxHeader.png"
             alt="MySafeBox Logo"
-            className="mx-auto h-16 w-16 object-contain"
+            className="mx-auto h-20 w-20 object-contain"
           />
           <h2 className="mt-6 text-3xl font-extrabold text-white">
             MySafeBox

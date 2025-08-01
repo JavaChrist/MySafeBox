@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard';
 import InactivityWarning from './components/InactivityWarning';
 import { useInactivityTimer } from './utils/useInactivityTimer';
 import { User } from './types';
+import { APIService } from './services/api';
 
 // Configuration de sécurité
 const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes en millisecondes
@@ -38,7 +39,6 @@ function App() {
           }
 
           // Vérifier que les identifiants sont encore valides
-          const { APIService } = await import('./services/api');
           const proxyHealthy = await APIService.checkProxyHealth();
 
           if (!proxyHealthy) {

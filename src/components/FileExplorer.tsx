@@ -7,10 +7,11 @@ import {
   ArrowLeft,
   Download,
   Trash2,
-  MoreVertical,
   Image,
   FileText,
-  RefreshCw
+  RefreshCw,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { WebDAVAPIService } from '../services/webdav-api';
 import { FileItem } from '../types';
@@ -32,8 +33,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ webdavService, onError, onS
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
-  const [showContextMenu, setShowContextMenu] = useState(false);
-  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     loadFiles();
@@ -41,6 +42,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ webdavService, onError, onS
 
   const loadFiles = async () => {
     setIsLoading(true);
+    // Réinitialiser la sélection quand on change de dossier
+    setSelectedFiles(new Set());
     try {
       const fileList = await webdavService.listFiles(currentPath);
       setFiles(fileList.sort((a, b) => {
@@ -84,20 +87,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ webdavService, onError, onS
     }
   };
 
-  const handleDeleteFile = async () => {
-    if (!selectedFile) return;
-
-    try {
-      await webdavService.deleteFile(selectedFile.path);
-      onSuccess(`"${selectedFile.name}" supprimé avec succès`);
-      setShowDeleteModal(false);
-      setSelectedFile(null);
-      loadFiles();
-    } catch (error) {
-      onError('Erreur lors de la suppression');
-    }
-  };
-
   const handleDownload = async (file: FileItem) => {
     try {
       const content = await webdavService.downloadFile(file.path);
@@ -116,12 +105,102 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ webdavService, onError, onS
     }
   };
 
-  const handleContextMenu = (e: React.MouseEvent, file: FileItem) => {
-    e.preventDefault();
-    setSelectedFile(file);
-    setContextMenuPosition({ x: e.clientX, y: e.clientY });
-    setShowContextMenu(true);
+  const handleMultipleDownload = async () => {
+    if (selectedFiles.size === 0) {
+      onError('Aucun élément sélectionné');
+      return;
+    }
+
+    setIsDownloading(true);
+    const filesToDownload = files.filter(file =>
+      file.type === 'file' && selectedFiles.has(file.path)
+    );
+
+    if (filesToDownload.length === 0) {
+      onError('Aucun fichier sélectionné (les dossiers ne peuvent pas être téléchargés)');
+      setIsDownloading(false);
+      return;
+    }
+
+    try {
+      for (const file of filesToDownload) {
+        await handleDownload(file);
+        // Petite pause entre les téléchargements
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      onSuccess(`${filesToDownload.length} fichier(s) téléchargé(s)`);
+      setSelectedFiles(new Set());
+    } catch (error) {
+      onError('Erreur lors du téléchargement multiple');
+    } finally {
+      setIsDownloading(false);
+    }
   };
+
+  const handleMultipleDelete = async () => {
+    if (selectedFiles.size === 0) {
+      onError('Aucun élément sélectionné');
+      return;
+    }
+
+    const itemsToDelete = files.filter(file => selectedFiles.has(file.path));
+
+    try {
+      for (const item of itemsToDelete) {
+        await webdavService.deleteFile(item.path);
+      }
+      const fileCount = itemsToDelete.filter(item => item.type === 'file').length;
+      const folderCount = itemsToDelete.filter(item => item.type === 'directory').length;
+
+      let message = '';
+      if (fileCount > 0 && folderCount > 0) {
+        message = `${fileCount} fichier(s) et ${folderCount} dossier(s) supprimé(s)`;
+      } else if (fileCount > 0) {
+        message = `${fileCount} fichier(s) supprimé(s)`;
+      } else {
+        message = `${folderCount} dossier(s) supprimé(s)`;
+      }
+
+      onSuccess(message);
+      setSelectedFiles(new Set());
+      loadFiles();
+    } catch (error) {
+      onError('Erreur lors de la suppression multiple');
+    }
+  };
+
+  const toggleFileSelection = (filePath: string) => {
+    const newSelected = new Set(selectedFiles);
+    if (newSelected.has(filePath)) {
+      newSelected.delete(filePath);
+    } else {
+      newSelected.add(filePath);
+    }
+    setSelectedFiles(newSelected);
+  };
+
+  const selectAllFiles = () => {
+    const allItemPaths = files.map(file => file.path);
+    setSelectedFiles(new Set(allItemPaths));
+  };
+
+  const clearSelection = () => {
+    setSelectedFiles(new Set());
+  };
+
+  const handleDeleteFile = async () => {
+    if (!selectedFile) return;
+
+    try {
+      await webdavService.deleteFile(selectedFile.path);
+      onSuccess(`"${selectedFile.name}" supprimé avec succès`);
+      loadFiles();
+    } catch (error) {
+      onError('Erreur lors de la suppression');
+    }
+  };
+
+
 
   const getFileIcon = (file: FileItem) => {
     if (file.type === 'directory') {
@@ -188,20 +267,66 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ webdavService, onError, onS
           </button>
           <button
             onClick={() => setShowNewFolderModal(true)}
-            className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+            className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 hover:shadow-lg rounded-md transition-all shadow-md"
           >
             <FolderPlus className="h-4 w-4" />
             <span>Nouveau dossier</span>
           </button>
           <button
             onClick={() => setShowUploadModal(true)}
-            className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+            className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 hover:shadow-lg rounded-md transition-all shadow-md"
           >
             <Upload className="h-4 w-4" />
             <span>Uploader</span>
           </button>
+          <button
+            onClick={handleMultipleDownload}
+            disabled={selectedFiles.size === 0 || isDownloading}
+            className={`flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white rounded-md transition-all shadow-md ${selectedFiles.size === 0 || isDownloading
+                ? 'bg-orange-500 opacity-50 cursor-not-allowed saturate-75'
+                : 'bg-orange-500 hover:bg-orange-600 hover:shadow-lg'
+              }`}
+          >
+            <Download className="h-4 w-4" />
+            <span>{isDownloading ? 'Téléchargement...' : `Télécharger (${files.filter(f => f.type === 'file' && selectedFiles.has(f.path)).length})`}</span>
+          </button>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            disabled={selectedFiles.size === 0}
+            className={`flex items-center space-x-2 px-3 py-2 text-sm font-medium text-white rounded-md transition-all shadow-md ${selectedFiles.size === 0
+                ? 'bg-red-500 opacity-50 cursor-not-allowed saturate-75'
+                : 'bg-red-500 hover:bg-red-600 hover:shadow-lg'
+              }`}
+          >
+            <Trash2 className="h-4 w-4" />
+            <span>Supprimer ({selectedFiles.size})</span>
+          </button>
         </div>
       </div>
+
+      {/* Selection Controls */}
+      {files.length > 0 && (
+        <div className="px-4 pb-2 border-b border-gray-700">
+          <div className="flex items-center justify-between text-sm text-gray-400">
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={selectAllFiles}
+                className="hover:text-white transition-colors"
+              >
+                Sélectionner tout
+              </button>
+              <span>•</span>
+              <button
+                onClick={clearSelection}
+                className="hover:text-white transition-colors"
+              >
+                Désélectionner tout
+              </button>
+            </div>
+            <span>{selectedFiles.size} élément(s) sélectionné(s)</span>
+          </div>
+        </div>
+      )}
 
       {/* File List */}
       <div className="p-4">
@@ -220,67 +345,48 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ webdavService, onError, onS
             {files.map((file, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between p-3 bg-gray-700 hover:bg-gray-600 rounded-lg cursor-pointer transition-colors"
-                onClick={() => handleFolderClick(file)}
-                onContextMenu={(e) => handleContextMenu(e, file)}
+                className={`flex items-center justify-between p-3 rounded-lg transition-colors ${selectedFiles.has(file.path)
+                  ? 'bg-blue-700 hover:bg-blue-600'
+                  : 'bg-gray-700 hover:bg-gray-600'
+                  } cursor-pointer`}
               >
                 <div className="flex items-center space-x-3">
-                  {getFileIcon(file)}
-                  <div>
-                    <p className="text-white font-medium">{file.name}</p>
-                    <p className="text-gray-400 text-sm">
-                      {file.type === 'file' && file.size && formatFileSize(file.size)}
-                      {file.lastModified && ` • ${formatDate(file.lastModified)}`}
-                    </p>
+                  {/* Checkbox pour tous les éléments */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFileSelection(file.path);
+                    }}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    {selectedFiles.has(file.path) ? (
+                      <CheckSquare className="h-4 w-4 text-blue-400" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                  </button>
+
+                  <div
+                    onClick={() => file.type === 'directory' ? handleFolderClick(file) : toggleFileSelection(file.path)}
+                    className="flex items-center space-x-3 flex-1"
+                  >
+                    {getFileIcon(file)}
+                    <div>
+                      <p className="text-white font-medium">{file.name}</p>
+                      <p className="text-gray-400 text-sm">
+                        {file.type === 'file' && file.size && formatFileSize(file.size)}
+                        {file.lastModified && ` • ${formatDate(file.lastModified)}`}
+                      </p>
+                    </div>
                   </div>
                 </div>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleContextMenu(e, file);
-                  }}
-                  className="p-1 text-gray-400 hover:text-white transition-colors"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Context Menu */}
-      {showContextMenu && selectedFile && (
-        <div
-          className="fixed bg-gray-800 border border-gray-600 rounded-md shadow-lg z-50 py-2"
-          style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
-          onMouseLeave={() => setShowContextMenu(false)}
-        >
-          {selectedFile.type === 'file' && (
-            <button
-              onClick={() => {
-                handleDownload(selectedFile);
-                setShowContextMenu(false);
-              }}
-              className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
-            >
-              <Download className="h-4 w-4" />
-              <span>Télécharger</span>
-            </button>
-          )}
-          <button
-            onClick={() => {
-              setShowDeleteModal(true);
-              setShowContextMenu(false);
-            }}
-            className="flex items-center space-x-2 w-full px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
-          >
-            <Trash2 className="h-4 w-4" />
-            <span>Supprimer</span>
-          </button>
-        </div>
-      )}
+
 
       {/* Modals */}
       <Modal
@@ -311,11 +417,40 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ webdavService, onError, onS
         onClose={() => {
           setShowDeleteModal(false);
           setSelectedFile(null);
+          setSelectedFiles(new Set());
         }}
         title="Confirmer la suppression"
-        message={`Êtes-vous sûr de vouloir supprimer "${selectedFile?.name}" ? Cette action est irréversible.`}
+        message={selectedFiles.size > 0
+          ? (() => {
+            const selectedItems = files.filter(f => selectedFiles.has(f.path));
+            const fileCount = selectedItems.filter(item => item.type === 'file').length;
+            const folderCount = selectedItems.filter(item => item.type === 'directory').length;
+
+            let itemText = '';
+            if (fileCount > 0 && folderCount > 0) {
+              itemText = `${fileCount} fichier(s) et ${folderCount} dossier(s)`;
+            } else if (fileCount > 0) {
+              itemText = `${fileCount} fichier(s)`;
+            } else {
+              itemText = `${folderCount} dossier(s)`;
+            }
+
+            return `Êtes-vous sûr de vouloir supprimer ${itemText} sélectionné(s) ? Cette action est irréversible.`;
+          })()
+          : selectedFile
+            ? `Êtes-vous sûr de vouloir supprimer "${selectedFile.name}" ? Cette action est irréversible.`
+            : 'Aucun élément sélectionné'
+        }
         type="error"
-        onConfirm={handleDeleteFile}
+        onConfirm={() => {
+          if (selectedFiles.size > 0) {
+            handleMultipleDelete();
+          } else if (selectedFile) {
+            handleDeleteFile();
+            setSelectedFile(null);
+          }
+          setShowDeleteModal(false);
+        }}
         confirmText="Supprimer"
       />
 

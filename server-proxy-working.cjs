@@ -25,7 +25,7 @@ app.use(
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Configuration WebDAV - Utilise la variable d'environnement ou l'URL par défaut
+// Configuration WebDAV - URL publique pour production
 const WEBDAV_URL = process.env.NAS_URL || "https://app.mysafebox.fr";
 
 // Store des clients WebDAV (en mémoire pour la démo)
