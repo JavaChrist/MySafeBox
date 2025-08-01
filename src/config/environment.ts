@@ -6,7 +6,7 @@
 // URLs de configuration - Modifiez ces valeurs selon vos besoins
 export const CONFIG = {
   // URL principale publique - MODIFIEZ ICI pour changer l'URL
-  NAS_URL: 'https://192.168.1.82:5006', // TEMPORAIRE : URL locale pour tests
+  NAS_URL: 'https://app.mysafebox.fr',
 
   // URL locale de fallback (développement/diagnostic)
   NAS_LOCAL_URL: 'https://192.168.1.82:5006',
