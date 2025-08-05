@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply h-full;
+  }
+
+  body {
+    @apply h-full bg-gray-900 text-white font-sans antialiased;
+    margin: 0;
+  }
+
+  #root {
+    @apply h-full;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md
+           transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 
+           rounded-md border border-gray-600 transition-colors;
+  }
+
+  .input-standard {
+    @apply w-full px-3 py-2 border border-gray-600 placeholder-gray-400 
+           text-gray-200 bg-gray-800 rounded-md focus:outline-none 
+           focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+
+  .input-standard:focus,
+  .input-standard:active,
+  .input-standard:-webkit-autofill,
+  .input-standard:-webkit-autofill:focus,
+  .input-standard:-webkit-autofill:active {
+    @apply bg-gray-800 text-gray-200;
+    -webkit-box-shadow: 0 0 0 1000px rgb(31 41 55) inset !important;
+    -webkit-text-fill-color: rgb(229 231 235) !important;
+  }
+
+  .card {
+    @apply bg-gray-800 rounded-lg border border-gray-700 p-4;
+  }
+}
