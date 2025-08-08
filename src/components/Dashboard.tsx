@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LogOut, User as UserIcon, RefreshCw } from 'lucide-react';
-import type { User } from '../types';
+import type { AuthUser } from '../services/firebase-auth';
 import { APIService } from '../services/api';
 import { ConnectionStatus } from './ConnectionStatus';
 import { FileExplorer } from './FileExplorer';
@@ -8,7 +8,7 @@ import { InactivityWarning } from './InactivityWarning';
 import { useInactivityTimer } from '../utils/useInactivityTimer';
 
 interface DashboardProps {
-  user: User;
+  user: AuthUser;
   apiService: APIService;
   onLogout: () => void;
 }
@@ -69,7 +69,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout
             <div className="flex items-center gap-3 text-gray-300">
               <div className="flex items-center gap-2">
                 <UserIcon className="w-4 h-4" />
-                <span className="font-medium">{user.username}</span>
+                <span className="font-medium">{user.displayName || user.email}</span>
               </div>
 
               <div className="w-px h-6 bg-gray-600" />

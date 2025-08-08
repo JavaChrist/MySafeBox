@@ -38,10 +38,13 @@
   .input-standard:active,
   .input-standard:-webkit-autofill,
   .input-standard:-webkit-autofill:focus,
-  .input-standard:-webkit-autofill:active {
+  .input-standard:-webkit-autofill:active,
+  .input-standard:-webkit-autofill:hover {
     @apply bg-gray-800 text-gray-200;
     -webkit-box-shadow: 0 0 0 1000px rgb(31 41 55) inset !important;
     -webkit-text-fill-color: rgb(229 231 235) !important;
+    background-color: rgb(31 41 55) !important;
+    transition: none !important;
   }
 
   .card {

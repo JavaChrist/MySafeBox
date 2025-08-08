@@ -1,75 +1,76 @@
 import React, { useState } from 'react';
-import { AlertCircle, RefreshCw } from 'lucide-react';
-import type { User } from '../types';
-import { APIService } from '../services/api';
-import { getAPIUrl } from '../config/environment';
-import { ConnectionStatus } from './ConnectionStatus';
+import { AlertCircle, RefreshCw, UserPlus, Mail, User, Lock } from 'lucide-react';
+import { firebaseAuthService, type AuthUser } from '../services/firebase-auth';
 
 interface LoginFormProps {
-  onLogin: (user: User, apiService: APIService) => void;
+  onLogin: (user: AuthUser) => void;
 }
 
 interface LoginFormState {
-  username: string;
+  email: string;
   password: string;
+  displayName: string;
   isLoading: boolean;
   error: string | null;
+  isRegisterMode: boolean;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
   const [state, setState] = useState<LoginFormState>({
-    username: '',
+    email: '',
     password: '',
+    displayName: '',
     isLoading: false,
-    error: null
+    error: null,
+    isRegisterMode: false
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!state.username.trim() || !state.password.trim()) {
+    // Validation des champs
+    if (!state.email.trim() || !state.password.trim()) {
       setState(prev => ({ ...prev, error: 'Veuillez remplir tous les champs' }));
+      return;
+    }
+
+    if (state.isRegisterMode && !state.displayName.trim()) {
+      setState(prev => ({ ...prev, error: 'Veuillez entrer votre nom' }));
       return;
     }
 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // Créer l'utilisateur temporaire pour l'API
-      const user: User = {
-        id: state.username,
-        username: state.username,
-        nasUrl: getAPIUrl(),
-        webdavUsername: state.username,
-        webdavPassword: state.password
-      };
+      let user: AuthUser;
 
-      // Créer le service API
-      const apiService = new APIService(user);
-
-      // Tenter la connexion
-      const loginSuccess = await apiService.login(state.username, state.password);
-
-      if (loginSuccess) {
-        onLogin(user, apiService);
+      if (state.isRegisterMode) {
+        // Inscription
+        user = await firebaseAuthService.register(
+          state.email.trim(),
+          state.password,
+          state.displayName.trim()
+        );
       } else {
-        setState(prev => ({
-          ...prev,
-          error: 'Nom d\'utilisateur ou mot de passe incorrect',
-          isLoading: false
-        }));
+        // Connexion
+        user = await firebaseAuthService.login(
+          state.email.trim(),
+          state.password
+        );
       }
+
+      onLogin(user);
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Auth error:', error);
       setState(prev => ({
         ...prev,
-        error: 'Erreur de connexion au serveur. Vérifiez votre réseau.',
-        isLoading: false
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Erreur d\'authentification'
       }));
     }
   };
 
-  const handleInputChange = (field: keyof Pick<LoginFormState, 'username' | 'password'>) =>
+  const handleInputChange = (field: keyof Pick<LoginFormState, 'email' | 'password' | 'displayName'>) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setState(prev => ({
         ...prev,
@@ -77,6 +78,17 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         error: null // Clear error when user types
       }));
     };
+
+  const toggleMode = () => {
+    setState(prev => ({
+      ...prev,
+      isRegisterMode: !prev.isRegisterMode,
+      error: null,
+      email: '',
+      password: '',
+      displayName: ''
+    }));
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
@@ -87,15 +99,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
             <img src="/MySafeBoxHeader.png" alt="MySafeBox" className="w-24 h-24" />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">MySafeBox</h1>
-          <p className="text-gray-400">Coffre-fort numérique sécurisé</p>
+          <p className="text-gray-400">
+            {state.isRegisterMode ? 'Créer un compte' : 'Coffre-fort numérique sécurisé'}
+          </p>
         </div>
 
-        {/* Badge de connexion */}
-        <div className="flex justify-center mb-4">
-          <ConnectionStatus />
-        </div>
-
-        {/* Formulaire de connexion */}
+        {/* Formulaire de connexion/inscription */}
         <div className="card">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Message d'erreur */}
@@ -106,19 +115,41 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
               </div>
             )}
 
-            {/* Champ nom d'utilisateur */}
+            {/* Champ nom (inscription uniquement) */}
+            {state.isRegisterMode && (
+              <div>
+                <label htmlFor="displayName" className="block text-sm font-medium text-gray-300 mb-2">
+                  <User className="w-4 h-4 inline mr-2" />
+                  Nom complet
+                </label>
+                <input
+                  id="displayName"
+                  type="text"
+                  value={state.displayName}
+                  onChange={handleInputChange('displayName')}
+                  className="input-standard"
+                  placeholder="Votre nom complet"
+                  autoComplete="name"
+                  disabled={state.isLoading}
+                  required={state.isRegisterMode}
+                />
+              </div>
+            )}
+
+            {/* Champ email */}
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
-                Nom d'utilisateur
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                <Mail className="w-4 h-4 inline mr-2" />
+                Email
               </label>
               <input
-                id="username"
-                type="text"
-                value={state.username}
-                onChange={handleInputChange('username')}
+                id="email"
+                type="email"
+                value={state.email}
+                onChange={handleInputChange('email')}
                 className="input-standard"
-                placeholder="Votre nom d'utilisateur DSM"
-                autoComplete="username"
+                placeholder="votre@email.com"
+                autoComplete="email"
                 disabled={state.isLoading}
                 required
               />
@@ -127,6 +158,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
             {/* Champ mot de passe */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                <Lock className="w-4 h-4 inline mr-2" />
                 Mot de passe
               </label>
               <input
@@ -135,14 +167,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 value={state.password}
                 onChange={handleInputChange('password')}
                 className="input-standard"
-                placeholder="Votre mot de passe DSM"
-                autoComplete="current-password"
+                placeholder={state.isRegisterMode ? "Minimum 6 caractères" : "Votre mot de passe"}
+                autoComplete={state.isRegisterMode ? "new-password" : "current-password"}
                 disabled={state.isLoading}
                 required
+                minLength={6}
               />
             </div>
 
-            {/* Bouton de connexion */}
+            {/* Bouton principal */}
             <button
               type="submit"
               disabled={state.isLoading}
@@ -151,19 +184,44 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
               {state.isLoading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Connexion en cours...
+                  {state.isRegisterMode ? 'Création en cours...' : 'Connexion en cours...'}
                 </>
               ) : (
-                'Se connecter'
+                <>
+                  {state.isRegisterMode ? (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      Créer un compte
+                    </>
+                  ) : (
+                    'Se connecter'
+                  )}
+                </>
               )}
             </button>
           </form>
 
-          {/* Informations sur la connexion */}
+          {/* Basculer entre connexion et inscription */}
+          <div className="mt-6 pt-6 border-t border-gray-700 text-center">
+            <button
+              type="button"
+              onClick={toggleMode}
+              disabled={state.isLoading}
+              className="text-blue-400 hover:text-blue-300 text-sm transition-colors disabled:opacity-50"
+            >
+              {state.isRegisterMode ? (
+                'Déjà un compte ? Se connecter'
+              ) : (
+                'Pas de compte ? S\'inscrire'
+              )}
+            </button>
+          </div>
+
+          {/* Informations */}
           <div className="mt-6 pt-6 border-t border-gray-700">
             <div className="text-center text-sm text-gray-400">
-              <p>Utilisez vos identifiants DSM Synology</p>
-              <p className="mt-1">URL: <span className="text-blue-400 font-mono text-xs">{getAPIUrl()}</span></p>
+              <p>🔥 Powered by Firebase</p>
+              <p className="mt-1">Authentification et stockage sécurisés</p>
             </div>
           </div>
         </div>

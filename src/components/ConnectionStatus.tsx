@@ -1,45 +1,37 @@
 import React from 'react';
-import { Home, Globe, Wifi, WifiOff } from 'lucide-react';
-import type { ConnectionInfo } from '../types';
-import { isLocalNetwork, isOnNAS, getAPIUrl } from '../config/environment';
+import { Home, Globe, Wifi } from 'lucide-react';
+import { isProduction } from '../config/environment';
 
 interface ConnectionStatusProps {
   className?: string;
 }
 
+interface ConnectionInfo {
+  type: "LOCAL" | "DISTANT";
+  displayUrl: string;
+  isSecure: boolean;
+  icon: string;
+  badge: string;
+}
+
 export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ className = '' }) => {
   const getConnectionInfo = (): ConnectionInfo => {
-    const url = getAPIUrl();
-
-    if (isOnNAS()) {
+    if (isProduction()) {
       return {
-        type: 'LOCAL',
-        url,
-        displayUrl: 'Sur NAS',
+        type: 'DISTANT',
+        displayUrl: 'Firebase Cloud',
         isSecure: true,
-        icon: 'Home',
-        badge: 'NAS'
-      };
-    }
-
-    if (isLocalNetwork()) {
-      return {
-        type: 'LOCAL',
-        url,
-        displayUrl: 'Réseau local',
-        isSecure: url.startsWith('https'),
-        icon: 'Home',
-        badge: 'LAN'
+        icon: 'Globe',
+        badge: 'CLOUD'
       };
     }
 
     return {
-      type: 'DISTANT',
-      url,
-      displayUrl: 'Réseau distant',
-      isSecure: url.startsWith('https'),
-      icon: 'Globe',
-      badge: 'WAN'
+      type: 'LOCAL',
+      displayUrl: 'Développement',
+      isSecure: true,
+      icon: 'Home',
+      badge: 'DEV'
     };
   };
 
@@ -52,9 +44,7 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ className = 
       case 'Globe':
         return <Globe className="w-4 h-4" />;
       default:
-        return connectionInfo.isSecure ?
-          <Wifi className="w-4 h-4" /> :
-          <WifiOff className="w-4 h-4" />;
+        return <Wifi className="w-4 h-4" />;
     }
   };
 
@@ -73,13 +63,11 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ className = 
         <span>{connectionInfo.badge}</span>
       </div>
 
-      {/* Indicateur de sécurité */}
-      {!connectionInfo.isSecure && connectionInfo.type === 'DISTANT' && (
-        <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs">
-          <WifiOff className="w-3 h-3" />
-          <span>Non sécurisé</span>
-        </div>
-      )}
+      {/* Indicateur Firebase */}
+      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs">
+        <span>🔥</span>
+        <span>Firebase</span>
+      </div>
     </div>
   );
 };

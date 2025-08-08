@@ -1,0 +1,120 @@
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+  type User
+} from 'firebase/auth';
+import { auth } from '../config/firebase';
+
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
+
+export class FirebaseAuthService {
+
+  // Connexion avec email/mot de passe
+  async login(email: string, password: string): Promise<AuthUser> {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      return {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL
+      };
+    } catch (error: any) {
+      console.error('Erreur de connexion:', error);
+      throw new Error(this.getErrorMessage(error.code));
+    }
+  }
+
+  // Inscription avec email/mot de passe  
+  async register(email: string, password: string, displayName: string): Promise<AuthUser> {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Mettre à jour le profil avec le nom
+      await updateProfile(user, { displayName });
+
+      return {
+        uid: user.uid,
+        email: user.email,
+        displayName: displayName,
+        photoURL: user.photoURL
+      };
+    } catch (error: any) {
+      console.error('Erreur d\'inscription:', error);
+      throw new Error(this.getErrorMessage(error.code));
+    }
+  }
+
+  // Déconnexion
+  async logout(): Promise<void> {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Erreur de déconnexion:', error);
+      throw error;
+    }
+  }
+
+  // Écouter les changements d'état d'authentification
+  onAuthStateChange(callback: (user: AuthUser | null) => void) {
+    return onAuthStateChanged(auth, (user: User | null) => {
+      if (user) {
+        callback({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL
+        });
+      } else {
+        callback(null);
+      }
+    });
+  }
+
+  // Utilisateur actuel
+  getCurrentUser(): AuthUser | null {
+    const user = auth.currentUser;
+    if (user) {
+      return {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL
+      };
+    }
+    return null;
+  }
+
+  // Messages d'erreur traduits
+  private getErrorMessage(errorCode: string): string {
+    switch (errorCode) {
+      case 'auth/user-not-found':
+        return 'Aucun utilisateur trouvé avec cet email';
+      case 'auth/wrong-password':
+        return 'Mot de passe incorrect';
+      case 'auth/email-already-in-use':
+        return 'Cet email est déjà utilisé';
+      case 'auth/weak-password':
+        return 'Le mot de passe doit contenir au moins 6 caractères';
+      case 'auth/invalid-email':
+        return 'Email invalide';
+      case 'auth/too-many-requests':
+        return 'Trop de tentatives. Réessayez plus tard';
+      default:
+        return 'Erreur d\'authentification';
+    }
+  }
+}
+
+export const firebaseAuthService = new FirebaseAuthService();

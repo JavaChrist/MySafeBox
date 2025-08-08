@@ -1,51 +1,60 @@
 import { useState, useEffect } from 'react';
 import { LoginForm } from './components/LoginForm';
 import { Dashboard } from './components/Dashboard';
-import type { User } from './types';
+import { firebaseAuthService, type AuthUser } from './services/firebase-auth';
 import { APIService } from './services/api';
 
 function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [apiService, setApiService] = useState<APIService | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Vérifier s'il y a une session existante au démarrage
+  // Écouter les changements d'authentification Firebase
   useEffect(() => {
-    const sessionData = APIService.getSessionData();
-    if (sessionData) {
-      const sessionUser: User = {
-        id: sessionData.username,
-        username: sessionData.username,
-        nasUrl: sessionData.nasUrl,
-        webdavUsername: sessionData.username,
-        webdavPassword: '' // On ne stocke pas le mot de passe
-      };
-
-      const service = new APIService(sessionUser);
-
-      // Restaurer la session si elle existe
-      if (sessionData.sessionId) {
-        service.restoreSession(sessionData.sessionId);
+    const unsubscribe = firebaseAuthService.onAuthStateChange((authUser) => {
+      if (authUser) {
+        console.log('👤 Utilisateur connecté:', authUser.email);
+        setUser(authUser);
+        setApiService(new APIService(authUser));
+      } else {
+        console.log('👤 Utilisateur déconnecté');
+        setUser(null);
+        setApiService(null);
       }
+      setIsLoading(false);
+    });
 
-      setUser(sessionUser);
-      setApiService(service);
-    }
+    // Nettoyage
+    return () => unsubscribe();
   }, []);
 
   // Gestion de la connexion
-  const handleLogin = (loggedUser: User, service: APIService) => {
-    setUser(loggedUser);
-    setApiService(service);
+  const handleLogin = (loggedUser: AuthUser) => {
+    // La mise à jour se fera automatiquement via onAuthStateChange
+    console.log('✅ Connexion réussie pour:', loggedUser.email);
   };
 
   // Gestion de la déconnexion
   const handleLogout = async () => {
-    if (apiService) {
-      await apiService.logout();
+    try {
+      await firebaseAuthService.logout();
+      // La mise à jour se fera automatiquement via onAuthStateChange
+    } catch (error) {
+      console.error('Erreur déconnexion:', error);
     }
-    setUser(null);
-    setApiService(null);
   };
+
+  // Chargement initial
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="text-white mt-4">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Si pas d'utilisateur connecté, afficher le formulaire de connexion
   if (!user || !apiService) {

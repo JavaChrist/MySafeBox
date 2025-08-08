@@ -1,7 +1,7 @@
-// MySafeBox Service Worker - PWA iPhone Ready
-const CACHE_NAME = "mysafebox-v1.0.0";
-const STATIC_CACHE = "mysafebox-static-v1";
-const DYNAMIC_CACHE = "mysafebox-dynamic-v1";
+// MySafeBox Service Worker - PWA iPhone Ready - FORCE UPDATE
+const CACHE_NAME = "mysafebox-v2.0.0-FORCE";
+const STATIC_CACHE = "mysafebox-static-v2-FORCE";
+const DYNAMIC_CACHE = "mysafebox-dynamic-v2-FORCE";
 
 // Assets à mettre en cache statique
 const STATIC_ASSETS = [
@@ -35,26 +35,23 @@ self.addEventListener("install", (event) => {
 
 // Activation du service worker
 self.addEventListener("activate", (event) => {
-  console.log("MySafeBox SW: Activating...");
+  console.log("MySafeBox SW: Activating - FORCE CACHE CLEAR...");
 
   event.waitUntil(
     caches
       .keys()
       .then((cacheNames) => {
+        console.log("MySafeBox SW: Found caches:", cacheNames);
+        // SUPPRIME TOUS LES ANCIENS CACHES
         return Promise.all(
-          cacheNames
-            .filter(
-              (cacheName) =>
-                cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE
-            )
-            .map((cacheName) => {
-              console.log("MySafeBox SW: Deleting old cache:", cacheName);
-              return caches.delete(cacheName);
-            })
+          cacheNames.map((cacheName) => {
+            console.log("MySafeBox SW: FORCE DELETING cache:", cacheName);
+            return caches.delete(cacheName);
+          })
         );
       })
       .then(() => {
-        console.log("MySafeBox SW: Activation complete");
+        console.log("MySafeBox SW: ALL CACHES CLEARED - Activation complete");
         return self.clients.claim(); // Prise de contrôle immédiate
       })
   );

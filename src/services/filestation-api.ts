@@ -1,319 +1,377 @@
-import type { User, FileItem } from '../types';
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+  listAll,
+  getMetadata,
 
-export class FileStationService {
-  private baseUrl: string;
-  private user: User;
-  private sessionId: string | null = null;
+  type UploadMetadata
+} from 'firebase/storage';
+import { storage } from '../config/firebase';
+import type { FileItem } from '../types';
+import { CONFIG } from '../config/environment';
 
-  constructor(baseUrl: string, user: User) {
-    this.baseUrl = baseUrl;
-    this.user = user;
+export interface FirebaseFileItem extends FileItem {
+  downloadUrl?: string;
+  fullPath: string;
+}
+
+export class FirebaseStorageService {
+  private userId: string;
+
+  constructor(userId: string) {
+    this.userId = userId;
   }
 
-  // Getter/Setter pour sessionId
-  getSessionId(): string | null {
-    return this.sessionId;
-  }
-
-  setSessionId(sessionId: string): void {
-    this.sessionId = sessionId;
-  }
-
-  // Authentification via FileStation API
-  async login(username: string, password: string): Promise<boolean> {
-    try {
-      const params = new URLSearchParams();
-      params.append('api', 'SYNO.API.Auth');
-      params.append('version', '3');
-      params.append('method', 'login');
-      params.append('account', username);
-      params.append('passwd', password);
-      params.append('session', 'FileStation');
-      params.append('format', 'sid');
-
-      console.log('🔗 API URL utilisée:', `${this.baseUrl}/webapi/auth.cgi`);
-      console.log('📊 Paramètres:', params.toString());
-
-      const response = await fetch(`${this.baseUrl}/webapi/auth.cgi`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: params.toString()
-      });
-
-      const data = await response.json();
-      console.log('🔍 Réponse complète:', data);
-
-      if (data.success) {
-        this.sessionId = data.data?.sid || 'authenticated';
-        console.log('Connexion réussie !');
-        return true;
-      } else {
-        console.error('Login failed:', data);
-        console.error('Code erreur:', data.error?.code);
-        return false;
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      return false;
-    }
-  }
-
-  // Déconnexion
-  async logout(): Promise<void> {
-    if (!this.sessionId) return;
-
-    try {
-      const formData = new FormData();
-      formData.append('api', 'SYNO.API.Auth');
-      formData.append('version', '3');
-      formData.append('method', 'logout');
-      formData.append('session', 'FileStation');
-
-      await fetch(`${this.baseUrl}/webapi/auth.cgi`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-      });
-
-      this.sessionId = null;
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+  // Obtenir la référence du dossier utilisateur
+  private getUserPath(path: string = ''): string {
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    return `users/${this.userId}/${cleanPath}`;
   }
 
   // Lister les fichiers d'un répertoire
-  async listFiles(path: string): Promise<FileItem[]> {
-    if (!this.sessionId) throw new Error('Not authenticated');
-
+  async listFiles(path: string = ''): Promise<FirebaseFileItem[]> {
     try {
-      // Si c'est la racine, lister les shared folders d'abord
-      if (path === '/') {
-        console.log('Listing shared folders...');
+      const userPath = this.getUserPath(path);
+      const listRef = ref(storage, userPath);
 
-        const params = new URLSearchParams({
-          api: 'SYNO.FileStation.List',
-          version: '2',
-          method: 'list_share',
-          _sid: this.sessionId
+      console.log('📁 Listing files in:', userPath);
+
+      const result = await listAll(listRef);
+      const files: FirebaseFileItem[] = [];
+
+      // Traiter les dossiers
+      for (const folderRef of result.prefixes) {
+        const folderName = folderRef.name;
+        files.push({
+          name: folderName,
+          type: 'directory',
+          size: 0,
+          lastModified: new Date(),
+          path: path ? `${path}/${folderName}` : folderName,
+          isdir: true,
+          fullPath: folderRef.fullPath,
         });
+      }
 
-        console.log('🔗 Shared folders params:', params.toString());
+      // Traiter les fichiers (ignorer les fichiers .keep)
+      for (const fileRef of result.items) {
+        // Ignorer les fichiers .keep utilisés pour créer des dossiers
+        if (fileRef.name === '.keep') continue;
 
-        const response = await fetch(`${this.baseUrl}/webapi/entry.cgi?${params}`);
-        const data = await response.json();
+        try {
+          const metadata = await getMetadata(fileRef);
+          const downloadUrl = await getDownloadURL(fileRef);
 
-        console.log('🔍 Shared folders response:', data);
-        console.log('Nombre de dossiers partagés:', data.data?.shares?.length || 0);
-        console.log('📋 Liste des dossiers:', data.data?.shares?.map((s: any) => s.name) || []);
-
-        if (data.success) {
-          return data.data.shares.map((share: any) => ({
-            name: share.name,
-            type: 'directory',
-            size: 0,
-            lastModified: new Date(),
-            path: share.path,
-            isdir: true
-          }));
-        } else {
-          throw new Error(data.error?.code || 'Failed to list shared folders');
-        }
-      } else {
-        // Pour les autres chemins, lister normalement
-        const params = new URLSearchParams({
-          api: 'SYNO.FileStation.List',
-          version: '2',
-          method: 'list',
-          folder_path: path,
-          additional: '["real_path","size","time","perm","type"]',
-          _sid: this.sessionId
-        });
-
-        console.log('🔗 Listing path:', path);
-        console.log('📊 List params:', params.toString());
-
-        const response = await fetch(`${this.baseUrl}/webapi/entry.cgi?${params}`);
-        const data = await response.json();
-
-        console.log('🔍 List response:', data);
-        console.log('Exemple de fichier:', data.data?.files?.[0]);
-
-        if (data.success) {
-          return data.data.files.map((file: any) => ({
-            name: file.name,
-            type: file.isdir ? 'directory' : 'file',
-            size: file.size || 0,
-            lastModified: file.time?.mtime ? new Date(file.time.mtime * 1000) : new Date(),
-            path: file.path,
-            isdir: file.isdir
-          }));
-        } else {
-          throw new Error(data.error?.code || 'Failed to list files');
+          files.push({
+            name: fileRef.name,
+            type: 'file',
+            size: metadata.size || 0,
+            lastModified: new Date(metadata.timeCreated),
+            path: path ? `${path}/${fileRef.name}` : fileRef.name,
+            isdir: false,
+            fullPath: fileRef.fullPath,
+            downloadUrl
+          });
+        } catch (error) {
+          console.warn('Erreur métadonnées pour:', fileRef.name, error);
+          // Ajouter le fichier sans métadonnées si erreur (sauf .keep)
+          if (fileRef.name !== '.keep') {
+            files.push({
+              name: fileRef.name,
+              type: 'file',
+              size: 0,
+              lastModified: new Date(),
+              path: path ? `${path}/${fileRef.name}` : fileRef.name,
+              isdir: false,
+              fullPath: fileRef.fullPath
+            });
+          }
         }
       }
+
+      // Trier : dossiers d'abord, puis fichiers par nom
+      files.sort((a, b) => {
+        if (a.isdir && !b.isdir) return -1;
+        if (!a.isdir && b.isdir) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      console.log('📁 Found', files.length, 'items');
+      return files;
     } catch (error) {
-      console.error('List files error:', error);
-      throw error;
+      console.error('Erreur listage fichiers:', error);
+      throw new Error('Impossible de lister les fichiers');
     }
   }
 
-  // Créer un dossier
+  // Créer un dossier (virtuel)
   async createFolder(path: string, name: string): Promise<boolean> {
-    if (!this.sessionId) throw new Error('Not authenticated');
-
     try {
-      const params = new URLSearchParams({
-        api: 'SYNO.FileStation.CreateFolder',
-        version: '2',
-        method: 'create',
-        folder_path: path,
-        name: name,
-        _sid: this.sessionId
-      });
+      // Dans Firebase Storage, on crée un fichier placeholder pour simuler un dossier
+      const folderPath = path ? `${path}/${name}` : name;
+      const userPath = this.getUserPath(`${folderPath}/.keep`);
+      const folderRef = ref(storage, userPath);
 
-      console.log('Creating folder:', name, 'in:', path);
+      // Créer un fichier vide pour matérialiser le dossier
+      const emptyFile = new Blob([''], { type: 'text/plain' });
+      await uploadBytes(folderRef, emptyFile);
 
-      const response = await fetch(`${this.baseUrl}/webapi/entry.cgi?${params}`);
-      const data = await response.json();
-
-      console.log('🔍 Create folder response:', data);
-
-      if (!data.success && data.error) {
-        console.error('Create folder error code:', data.error.code);
-        throw new Error(`Erreur ${data.error.code}: Impossible de créer le dossier`);
-      }
-
-      return data.success;
+      console.log('📁 Dossier créé:', folderPath);
+      return true;
     } catch (error) {
-      console.error('Create folder error:', error);
+      console.error('Erreur création dossier:', error);
       return false;
     }
   }
 
   // Upload un fichier
-  async uploadFile(file: File, path: string): Promise<boolean> {
-    if (!this.sessionId) throw new Error('Not authenticated');
-
+  async uploadFile(
+    file: File,
+    path: string,
+    onProgress?: (progress: number) => void
+  ): Promise<boolean> {
     try {
-      const formData = new FormData();
-      formData.append('api', 'SYNO.FileStation.Upload');
-      formData.append('version', '2');
-      formData.append('method', 'upload');
-      formData.append('path', path);
-      formData.append('create_parents', 'true');
-      formData.append('overwrite', 'true');
-      formData.append('_sid', this.sessionId);
-      formData.append('file', file);
+      // Vérification taille
+      if (file.size > CONFIG.MAX_FILE_SIZE) {
+        throw new Error(`Fichier trop volumineux. Taille maximum: ${CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB`);
+      }
 
-      console.log('📤 Uploading file:', file.name, 'to:', path);
+      const filePath = path ? `${path}/${file.name}` : file.name;
+      const userPath = this.getUserPath(filePath);
+      const fileRef = ref(storage, userPath);
 
-      const response = await fetch(`${this.baseUrl}/webapi/entry.cgi`, {
-        method: 'POST',
-        body: formData
-      });
+      console.log('📤 Upload vers:', userPath);
 
-      const data = await response.json();
+      // Métadonnées du fichier
+      const metadata: UploadMetadata = {
+        contentType: file.type,
+        customMetadata: {
+          originalName: file.name,
+          uploadedAt: new Date().toISOString(),
+          size: file.size.toString()
+        }
+      };
 
-      console.log('🔍 Upload response:', data);
+      // Upload avec suivi de progression si callback fourni
+      if (onProgress) {
+        // Pour l'instant, simple upload direct
+        // TODO: Implémenter uploadBytesResumable pour le suivi de progression
+        await uploadBytes(fileRef, file, metadata);
+        onProgress(100);
+      } else {
+        await uploadBytes(fileRef, file, metadata);
+      }
 
-      return data.success;
+      console.log('✅ Upload réussi:', file.name);
+      return true;
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Erreur upload:', error);
       return false;
     }
   }
 
   // Supprimer des fichiers/dossiers
   async deleteFiles(paths: string[]): Promise<boolean> {
-    if (!this.sessionId) throw new Error('Not authenticated');
+    console.log('🚀 DÉBUT SUPPRESSION - Paths reçus:', paths);
 
     try {
-      const params = new URLSearchParams({
-        api: 'SYNO.FileStation.Delete',
-        version: '2',
-        method: 'delete',
-        path: paths.join(','),
-        _sid: this.sessionId
+      const deletePromises = paths.map(async (path) => {
+        console.log('🔍 TRAITEMENT PATH:', path);
+
+        try {
+          const userPath = this.getUserPath(path);
+
+          console.log('🔍 Analyse suppression:', {
+            path,
+            userPath,
+            containsDot: path.includes('.'),
+            endsWith: path.endsWith('/')
+          });
+
+          // Déterminer si c'est un fichier ou un dossier
+          // Un fichier contient généralement une extension (point)
+          const pathContainsDot = path.includes('.') && !path.endsWith('/');
+
+          if (pathContainsDot) {
+            // C'est probablement un fichier (a une extension)
+            console.log('📄 Suppression fichier:', path, '→', userPath);
+            const fileRef = ref(storage, userPath);
+            await deleteObject(fileRef);
+            console.log('✅ Fichier supprimé de Firebase Storage');
+
+            // Après suppression d'un fichier, vérifier si le dossier parent ne contient plus que .keep
+            console.log('🧹 APPEL cleanupEmptyFolder pour:', path);
+            await this.cleanupEmptyFolder(path);
+            console.log('🧹 RETOUR cleanupEmptyFolder');
+          } else {
+            // C'est probablement un dossier
+            console.log('📁 Suppression dossier:', path, '→', userPath);
+            const listRef = ref(storage, userPath);
+            const result = await listAll(listRef);
+
+            console.log('📁 Contenu dossier:', {
+              items: result.items.map(i => i.name),
+              prefixes: result.prefixes.map(p => p.name)
+            });
+
+            // Supprimer tout le contenu du dossier récursivement
+            const allDeletePromises = [
+              ...result.items.map(item => deleteObject(item)),
+              ...result.prefixes.map(async (prefix) => {
+                const subResult = await listAll(prefix);
+                return Promise.all(subResult.items.map(item => deleteObject(item)));
+              })
+            ];
+            await Promise.all(allDeletePromises);
+          }
+
+          console.log('🗑️ Supprimé:', path);
+        } catch (error) {
+          console.error('Erreur suppression:', path, error);
+          throw error;
+        }
       });
 
-      console.log('🗑️ Deleting files:', paths);
-
-      const response = await fetch(`${this.baseUrl}/webapi/entry.cgi?${params}`);
-      const data = await response.json();
-
-      console.log('🔍 Delete response:', data);
-
-      return data.success;
+      await Promise.all(deletePromises);
+      console.log('✅ Suppression réussie pour', paths.length, 'éléments');
+      return true;
     } catch (error) {
-      console.error('Delete error:', error);
+      console.error('Erreur suppression fichiers:', error);
       return false;
+    }
+  }
+
+  // Nettoyer un dossier qui ne contient plus que .keep
+  private async cleanupEmptyFolder(filePath: string): Promise<void> {
+    try {
+      // Extraire le chemin du dossier parent
+      const pathParts = filePath.split('/');
+      console.log('🧹 Nettoyage - analyse chemin:', { filePath, pathParts });
+
+      if (pathParts.length <= 1) {
+        console.log('🧹 Pas de dossier parent, abandon nettoyage');
+        return; // Pas de dossier parent ou à la racine
+      }
+
+      pathParts.pop(); // Enlever le nom du fichier
+      const folderPath = pathParts.join('/');
+      const userFolderPath = this.getUserPath(folderPath);
+
+      console.log('🧹 Vérification dossier:', { folderPath, userFolderPath });
+
+      const listRef = ref(storage, userFolderPath);
+      const result = await listAll(listRef);
+
+      console.log('🧹 Contenu après suppression:', {
+        allItems: result.items.map(i => i.name),
+        prefixes: result.prefixes.map(p => p.name)
+      });
+
+      // Si le dossier ne contient plus que le fichier .keep, le supprimer aussi
+      const realFiles = result.items.filter(item => item.name !== '.keep');
+      const keepFiles = result.items.filter(item => item.name === '.keep');
+
+      console.log('🧹 Analyse:', {
+        realFiles: realFiles.length,
+        keepFiles: keepFiles.length,
+        prefixes: result.prefixes.length
+      });
+
+      if (realFiles.length === 0 && result.prefixes.length === 0) {
+        // Ne reste que .keep (ou rien), GARDER .keep pour maintenir le dossier
+        console.log('🧹 Dossier vide détecté, mais on garde .keep pour maintenir le dossier');
+        console.log('📁 Le dossier', folderPath, 'restera visible et vide');
+      } else {
+        console.log('🧹 Dossier non vide, pas de nettoyage nécessaire');
+      }
+    } catch (error) {
+      // Ignore les erreurs de nettoyage, ce n'est pas critique
+      console.error('❌ Erreur nettoyage dossier:', error);
     }
   }
 
   // Télécharger un fichier
   async downloadFile(path: string, filename: string): Promise<void> {
-    if (!this.sessionId) throw new Error('Not authenticated');
-
     try {
-      const params = new URLSearchParams({
-        api: 'SYNO.FileStation.Download',
-        version: '2',
-        method: 'download',
-        path: path,
-        mode: 'download',
-        _sid: this.sessionId
-      });
+      const userPath = this.getUserPath(path);
+      const fileRef = ref(storage, userPath);
 
-      console.log('📥 Downloading file:', filename, 'from:', path);
+      console.log('📥 Téléchargement:', userPath);
 
-      const response = await fetch(`${this.baseUrl}/webapi/entry.cgi?${params}`);
+      const downloadUrl = await getDownloadURL(fileRef);
 
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+      // Créer un lien de téléchargement
+      const response = await fetch(downloadUrl);
+      const blob = await response.blob();
 
-        console.log('Download completed:', filename);
-      } else {
-        throw new Error('Download failed');
-      }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      console.log('✅ Téléchargement réussi:', filename);
     } catch (error) {
-      console.error('Download error:', error);
-      throw error;
+      console.error('Erreur téléchargement:', error);
+      throw new Error('Impossible de télécharger le fichier');
     }
   }
 
-  // Créer automatiquement le dossier utilisateur
-  async ensureUserFolder(): Promise<boolean> {
+  // Obtenir l'URL de téléchargement direct
+  async getDownloadUrl(path: string): Promise<string> {
     try {
-      const formData = new FormData();
-      formData.append('api', 'SYNO.FileStation.CreateFolder');
-      formData.append('version', '2');
-      formData.append('method', 'create');
-      formData.append('folder_path', '/VaultsBackup');
-      formData.append('name', this.user.username);
-
-      const response = await fetch(`${this.baseUrl}/webapi/entry.cgi`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-      });
-
-      const data = await response.json();
-      // Retourne true même si le dossier existe déjà
-      return data.success || data.error?.code === 406;
+      const userPath = this.getUserPath(path);
+      const fileRef = ref(storage, userPath);
+      return await getDownloadURL(fileRef);
     } catch (error) {
-      console.error('Ensure user folder error:', error);
-      return false;
+      console.error('Erreur URL de téléchargement:', error);
+      throw new Error('Impossible d\'obtenir l\'URL de téléchargement');
     }
+  }
+
+  // Obtenir les métadonnées d'un fichier
+  async getFileMetadata(path: string): Promise<any> {
+    try {
+      const userPath = this.getUserPath(path);
+      const fileRef = ref(storage, userPath);
+      return await getMetadata(fileRef);
+    } catch (error) {
+      console.error('Erreur métadonnées:', error);
+      throw new Error('Impossible d\'obtenir les métadonnées');
+    }
+  }
+
+  // Vérifier la taille totale utilisée par l'utilisateur (approximation)
+  async getTotalUsedSpace(): Promise<number> {
+    try {
+      const files = await this.listFilesRecursive('');
+      return files.reduce((total, file) => total + (file.size || 0), 0);
+    } catch (error) {
+      console.error('Erreur calcul espace utilisé:', error);
+      return 0;
+    }
+  }
+
+  // Lister tous les fichiers récursivement
+  private async listFilesRecursive(path: string = ''): Promise<FirebaseFileItem[]> {
+    const files = await this.listFiles(path);
+    const allFiles: FirebaseFileItem[] = [];
+
+    for (const file of files) {
+      if (file.isdir) {
+        const subFiles = await this.listFilesRecursive(file.path);
+        allFiles.push(...subFiles);
+      } else {
+        allFiles.push(file);
+      }
+    }
+
+    return allFiles;
   }
 }

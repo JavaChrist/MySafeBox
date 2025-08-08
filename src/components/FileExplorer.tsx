@@ -4,17 +4,18 @@ import {
   Search, Grid, List, ChevronRight, Home, CheckSquare, Square,
   SortAsc, SortDesc
 } from 'lucide-react';
-import type { FileItem, User } from '../types';
+import type { AuthUser } from '../services/firebase-auth';
 import { APIService } from '../services/api';
+import type { FirebaseFileItem } from '../services/filestation-api';
 import { getFileIcon, formatFileSize, formatDate, sortFiles } from '../utils/fileHelpers';
 
 interface FileExplorerProps {
   apiService: APIService;
-  user: User;
+  user: AuthUser;
 }
 
 interface FileExplorerState {
-  files: FileItem[];
+  files: FirebaseFileItem[];
   currentPath: string;
   selectedFiles: string[];
   isLoading: boolean;
@@ -25,13 +26,15 @@ interface FileExplorerState {
   sortOrder: 'asc' | 'desc';
   showCreateFolderModal: boolean;
   showUploadModal: boolean;
+  showDeleteModal: boolean;
   newFolderName: string;
+  uploadProgress: number;
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) => {
   const [state, setState] = useState<FileExplorerState>({
     files: [],
-    currentPath: '/',
+    currentPath: '',
     selectedFiles: [],
     isLoading: true,
     error: null,
@@ -41,7 +44,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
     sortOrder: 'asc',
     showCreateFolderModal: false,
     showUploadModal: false,
-    newFolderName: ''
+    showDeleteModal: false,
+    newFolderName: '',
+    uploadProgress: 0
   });
 
   // Ref pour éviter les dépendances cycliques
@@ -54,6 +59,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
 
     try {
       const files = await apiService.listFiles(path);
+
       setState(prev => ({
         ...prev,
         files,
@@ -64,43 +70,34 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
     } catch (error) {
       console.error('Load files error:', error);
 
-      // Si erreur d'authentification, proposer de reconnecter
-      if (error instanceof Error && error.message.includes('Not authenticated')) {
-        setState(prev => ({
-          ...prev,
-          error: 'Session expirée. Veuillez vous reconnecter.',
-          isLoading: false
-        }));
-      } else {
-        setState(prev => ({
-          ...prev,
-          error: 'Erreur lors du chargement des fichiers',
-          isLoading: false
-        }));
-      }
+      setState(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : 'Erreur lors du chargement des fichiers',
+        isLoading: false
+      }));
     }
   }, [apiService]);
 
   // Chargement initial
   useEffect(() => {
-    loadFiles('/');
+    loadFiles('');
   }, [loadFiles]);
 
   // Navigation vers un dossier
   const navigateToFolder = useCallback((folderName: string) => {
-    const newPath = currentPathRef.current === '/'
-      ? `/${folderName}`
+    const newPath = currentPathRef.current === ''
+      ? folderName
       : `${currentPathRef.current}/${folderName}`;
     loadFiles(newPath);
   }, [loadFiles]);
 
   // Retour en arrière
   const goBack = useCallback(() => {
-    if (currentPathRef.current === '/') return;
+    if (currentPathRef.current === '') return;
 
     const pathParts = currentPathRef.current.split('/').filter(p => p);
     pathParts.pop();
-    const newPath = pathParts.length === 0 ? '/' : `/${pathParts.join('/')}`;
+    const newPath = pathParts.length === 0 ? '' : pathParts.join('/');
     loadFiles(newPath);
   }, [loadFiles]);
 
@@ -111,10 +108,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
 
   // Aller à la racine
   const goHome = useCallback(() => {
-    loadFiles('/');
+    loadFiles('');
   }, [loadFiles]);
 
-  // Gestion de la sélection
+  // Gestion de la sélection (fichiers ET dossiers)
   const toggleFileSelection = (filename: string) => {
     setState(prev => ({
       ...prev,
@@ -122,6 +119,21 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
         ? prev.selectedFiles.filter(f => f !== filename)
         : [...prev.selectedFiles, filename]
     }));
+  };
+
+  // Navigation vers un dossier (double-clic ou icône spéciale)
+  const handleItemClick = (file: FirebaseFileItem, event: React.MouseEvent) => {
+    if (file.isdir) {
+      // Pour les dossiers : Ctrl+clic = sélection, clic simple = navigation
+      if (event.ctrlKey || event.metaKey) {
+        toggleFileSelection(file.name);
+      } else {
+        navigateToFolder(file.name);
+      }
+    } else {
+      // Pour les fichiers : toujours sélection
+      toggleFileSelection(file.name);
+    }
   };
 
   // Sélectionner tout / Désélectionner tout
@@ -136,15 +148,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
 
   // Créer un nouveau dossier
   const handleCreateFolder = async () => {
-    if (!state.newFolderName.trim()) return;
-
-    // Empêcher la création de dossiers à la racine
-    if (currentPathRef.current === '/') {
+    // Validation du nom de dossier
+    if (!state.newFolderName.trim()) {
       setState(prev => ({
         ...prev,
-        error: 'Impossible de créer un dossier ici. Navigue dans un dossier partagé d\'abord.',
-        showCreateFolderModal: false,
-        newFolderName: ''
+        error: 'Veuillez entrer un nom de dossier'
       }));
       return;
     }
@@ -179,21 +187,19 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
   const handleUpload = async (files: FileList) => {
     if (!files || files.length === 0) return;
 
-    // Empêcher l'upload à la racine
-    if (currentPathRef.current === '/') {
-      setState(prev => ({
-        ...prev,
-        error: 'Impossible d\'uploader ici. Navigue dans un dossier partagé d\'abord.'
-      }));
-      return;
-    }
-
     try {
-      setState(prev => ({ ...prev, isLoading: true }));
+      setState(prev => ({ ...prev, isLoading: true, uploadProgress: 0 }));
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        await apiService.uploadFile(file, currentPathRef.current);
+        const progress = ((i + 1) / files.length) * 100;
+
+        await apiService.uploadFile(file, currentPathRef.current, (fileProgress) => {
+          const totalProgress = ((i / files.length) * 100) + (fileProgress / files.length);
+          setState(prev => ({ ...prev, uploadProgress: totalProgress }));
+        });
+
+        setState(prev => ({ ...prev, uploadProgress: progress }));
       }
 
       // Recharger les fichiers
@@ -201,30 +207,33 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
       setState(prev => ({
         ...prev,
         showUploadModal: false,
-        isLoading: false
+        isLoading: false,
+        uploadProgress: 0
       }));
     } catch (error) {
       console.error('Upload error:', error);
       setState(prev => ({
         ...prev,
-        error: 'Erreur lors de l\'upload',
-        isLoading: false
+        error: error instanceof Error ? error.message : 'Erreur lors de l\'upload',
+        isLoading: false,
+        uploadProgress: 0
       }));
     }
   };
 
+  // Ouvrir la modale de suppression
+  const openDeleteModal = () => {
+    if (state.selectedFiles.length === 0) return;
+    setState(prev => ({ ...prev, showDeleteModal: true }));
+  };
+
   // Supprimer les fichiers sélectionnés
   const handleDeleteSelected = async () => {
-    if (state.selectedFiles.length === 0) return;
-
-    const confirmed = window.confirm(`Supprimer ${state.selectedFiles.length} élément(s) ?`);
-    if (!confirmed) return;
-
     try {
-      setState(prev => ({ ...prev, isLoading: true }));
+      setState(prev => ({ ...prev, isLoading: true, showDeleteModal: false }));
 
       const pathsToDelete = state.selectedFiles.map(filename => {
-        return currentPathRef.current === '/' ? `/${filename}` : `${currentPathRef.current}/${filename}`;
+        return currentPathRef.current === '' ? filename : `${currentPathRef.current}/${filename}`;
       });
 
       const success = await apiService.deleteFiles(pathsToDelete);
@@ -238,18 +247,18 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
       console.error('Delete error:', error);
       setState(prev => ({
         ...prev,
-        error: 'Erreur lors de la suppression',
+        error: error instanceof Error ? error.message : 'Erreur lors de la suppression',
         isLoading: false
       }));
     }
   };
 
   // Télécharger un fichier
-  const handleDownload = async (file: FileItem) => {
+  const handleDownload = async (file: FirebaseFileItem) => {
     if (file.isdir) return; // Ne pas télécharger les dossiers
 
     try {
-      const filePath = currentPathRef.current === '/' ? `/${file.name}` : `${currentPathRef.current}/${file.name}`;
+      const filePath = currentPathRef.current === '' ? file.name : `${currentPathRef.current}/${file.name}`;
       await apiService.downloadFile(filePath, file.name);
     } catch (error) {
       console.error('Download error:', error);
@@ -285,7 +294,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
   }, [state.files, state.searchTerm, state.sortBy, state.sortOrder]);
 
   // Breadcrumb
-  const breadcrumbParts = state.currentPath === '/' ? [] : state.currentPath.split('/').filter(p => p);
+  const breadcrumbParts = state.currentPath === '' ? [] : state.currentPath.split('/').filter(p => p);
 
   return (
     <div className="h-full flex flex-col bg-gray-900">
@@ -351,7 +360,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
           {state.selectedFiles.length > 0 && (
             <button
               className="btn-secondary bg-red-600 hover:bg-red-700 text-white"
-              onClick={handleDeleteSelected}
+              onClick={openDeleteModal}
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Supprimer
@@ -362,7 +371,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-gray-300 mb-4">
           <span className="text-blue-400 cursor-pointer" onClick={goHome}>
-            {user.username}
+            {user.displayName || user.email}
           </span>
           {breadcrumbParts.map((part, index) => (
             <React.Fragment key={index}>
@@ -463,15 +472,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
               </div>
             )}
 
-            {/* Message informatif à la racine */}
-            {state.currentPath === '/' && (
+            {/* Message informatif dans le dossier racine */}
+            {state.currentPath === '' && (
               <div className="bg-blue-900 bg-opacity-30 border border-blue-700 rounded-lg p-4 mb-4">
                 <div className="flex items-center gap-3 text-blue-300">
                   <Home className="w-5 h-5" />
                   <div>
-                    <div className="font-medium">Dossiers partagés</div>
+                    <div className="font-medium">Bienvenue {user.displayName || user.email}</div>
                     <div className="text-sm text-blue-400">
-                      Clique sur un dossier partagé pour naviguer et gérer tes fichiers
+                      Voici votre coffre-fort personnel sécurisé sur Firebase
                     </div>
                   </div>
                 </div>
@@ -481,7 +490,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
             {/* Liste/Grille des fichiers */}
             {filteredAndSortedFiles.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
-                {state.searchTerm ? 'Aucun fichier trouvé' : state.currentPath === '/' ? 'Aucun dossier partagé accessible' : 'Ce dossier est vide'}
+                {state.searchTerm ? 'Aucun fichier trouvé' : 'Ce dossier est vide'}
               </div>
             ) : state.viewMode === 'grid' ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -494,7 +503,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                       key={file.name}
                       className={`card hover:bg-gray-700 cursor-pointer transition-colors relative ${isSelected ? 'ring-2 ring-blue-500' : ''
                         }`}
-                      onClick={() => file.isdir ? navigateToFolder(file.name) : toggleFileSelection(file.name)}
+                      onClick={(e) => handleItemClick(file, e)}
                     >
                       <div className="text-center">
                         <IconComponent className={`w-12 h-12 mx-auto mb-2 ${color}`} />
@@ -508,21 +517,21 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                         )}
                       </div>
 
-                      {/* Checkbox de sélection */}
-                      {!file.isdir && (
-                        <div
-                          className="absolute top-2 right-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFileSelection(file.name);
-                          }}
-                        >
-                          {isSelected ?
-                            <CheckSquare className="w-4 h-4 text-blue-500" /> :
-                            <Square className="w-4 h-4 text-gray-400 hover:text-white" />
-                          }
-                        </div>
-                      )}
+                      {/* Checkbox pour fichiers ET dossiers */}
+                      <div
+                        className="absolute top-2 right-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFileSelection(file.name);
+                        }}
+                      >
+                        {isSelected ?
+                          <CheckSquare className="w-4 h-4 text-blue-500" /> :
+                          <Square className="w-4 h-4 text-gray-400 hover:text-white" />
+                        }
+                      </div>
+
+
                     </div>
                   );
                 })}
@@ -538,23 +547,22 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                       key={file.name}
                       className={`flex items-center gap-4 p-3 rounded-md hover:bg-gray-800 cursor-pointer transition-colors ${isSelected ? 'bg-gray-800 ring-2 ring-blue-500' : ''
                         }`}
-                      onClick={() => file.isdir ? navigateToFolder(file.name) : toggleFileSelection(file.name)}
+                      onClick={(e) => handleItemClick(file, e)}
                     >
                       <div className="w-8">
-                        {!file.isdir && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFileSelection(file.name);
-                            }}
-                            className="text-gray-400 hover:text-white"
-                          >
-                            {isSelected ?
-                              <CheckSquare className="w-4 h-4 text-blue-500" /> :
-                              <Square className="w-4 h-4" />
-                            }
-                          </button>
-                        )}
+                        {/* Checkbox pour fichiers ET dossiers */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFileSelection(file.name);
+                          }}
+                          className="text-gray-400 hover:text-white"
+                        >
+                          {isSelected ?
+                            <CheckSquare className="w-4 h-4 text-blue-500" /> :
+                            <Square className="w-4 h-4" />
+                          }
+                        </button>
                       </div>
 
                       <IconComponent className={`w-6 h-6 ${color} flex-shrink-0`} />
@@ -625,7 +633,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
             </button>
             <button
               className="btn-secondary text-red-400 hover:text-red-300"
-              onClick={handleDeleteSelected}
+              onClick={openDeleteModal}
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Supprimer
@@ -665,6 +673,39 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                 disabled={!state.newFolderName.trim() || state.isLoading}
               >
                 Créer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de suppression */}
+      {state.showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 w-96">
+            <h3 className="text-lg font-semibold text-white mb-4">Confirmer la suppression</h3>
+            <p className="text-gray-300 mb-6">
+              Êtes-vous sûr de vouloir supprimer {state.selectedFiles.length} élément(s) ?
+              <br />
+              <span className="text-yellow-400 text-sm">
+                ⚠️ Les dossiers seront supprimés avec tout leur contenu
+              </span>
+              <br />
+              <span className="text-red-400 text-sm">Cette action est irréversible.</span>
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="btn-secondary"
+                onClick={() => setState(prev => ({ ...prev, showDeleteModal: false }))}
+              >
+                Annuler
+              </button>
+              <button
+                className="btn-primary bg-red-600 hover:bg-red-700"
+                onClick={handleDeleteSelected}
+                disabled={state.isLoading}
+              >
+                {state.isLoading ? 'Suppression...' : 'Supprimer'}
               </button>
             </div>
           </div>

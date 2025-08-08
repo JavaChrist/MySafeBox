@@ -1,107 +1,61 @@
-import { FileStationService } from './filestation-api';
-import type { User, FileItem } from '../types';
-import { getAPIUrl } from '../config/environment';
+import { FirebaseStorageService, type FirebaseFileItem } from './filestation-api';
+import type { AuthUser } from './firebase-auth';
 
 export class APIService {
-  private fileStationService: FileStationService;
+  private storageService: FirebaseStorageService;
+  private user: AuthUser;
 
-  constructor(user: User) {
-    const apiUrl = getAPIUrl();
-    this.fileStationService = new FileStationService(apiUrl, user);
-  }
-
-  // Authentification
-  async login(username: string, password: string): Promise<boolean> {
-    const success = await this.fileStationService.login(username, password);
-
-    if (success) {
-      // Créer automatiquement le dossier utilisateur
-      await this.fileStationService.ensureUserFolder();
-
-      // Sauvegarder la session
-      this.saveSession(username);
-    }
-
-    return success;
-  }
-
-  // Déconnexion
-  async logout(): Promise<void> {
-    await this.fileStationService.logout();
-    this.clearSession();
+  constructor(user: AuthUser) {
+    this.user = user;
+    this.storageService = new FirebaseStorageService(user.uid);
   }
 
   // Lister les fichiers
-  async listFiles(path: string = '/'): Promise<FileItem[]> {
-    return await this.fileStationService.listFiles(path);
+  async listFiles(path: string = ''): Promise<FirebaseFileItem[]> {
+    return await this.storageService.listFiles(path);
   }
 
   // Créer un dossier
   async createFolder(path: string, name: string): Promise<boolean> {
-    return await this.fileStationService.createFolder(path, name);
+    return await this.storageService.createFolder(path, name);
   }
 
   // Upload un fichier
-  async uploadFile(file: File, path: string = '/'): Promise<boolean> {
-    return await this.fileStationService.uploadFile(file, path);
+  async uploadFile(
+    file: File,
+    path: string = '',
+    onProgress?: (progress: number) => void
+  ): Promise<boolean> {
+    return await this.storageService.uploadFile(file, path, onProgress);
   }
 
   // Télécharger un fichier
   async downloadFile(path: string, filename: string): Promise<void> {
-    return await this.fileStationService.downloadFile(path, filename);
+    return await this.storageService.downloadFile(path, filename);
   }
 
   // Supprimer des fichiers
   async deleteFiles(paths: string[]): Promise<boolean> {
-    return await this.fileStationService.deleteFiles(paths);
+    return await this.storageService.deleteFiles(paths);
   }
 
-  // Gestion de session
-  private saveSession(username: string): void {
-    const sessionData = {
-      username,
-      timestamp: Date.now(),
-      nasUrl: getAPIUrl(),
-      sessionId: this.fileStationService.getSessionId()
-    };
-    localStorage.setItem('mysafebox_session', JSON.stringify(sessionData));
+  // Obtenir l'URL de téléchargement
+  async getDownloadUrl(path: string): Promise<string> {
+    return await this.storageService.getDownloadUrl(path);
   }
 
-  private clearSession(): void {
-    localStorage.removeItem('mysafebox_session');
+  // Obtenir les métadonnées d'un fichier
+  async getFileMetadata(path: string): Promise<any> {
+    return await this.storageService.getFileMetadata(path);
   }
 
-  // Vérifier si la session est valide (15 minutes)
-  static isSessionValid(): boolean {
-    const sessionData = localStorage.getItem('mysafebox_session');
-    if (!sessionData) return false;
-
-    try {
-      const { timestamp } = JSON.parse(sessionData);
-      const now = Date.now();
-      const sessionAge = now - timestamp;
-      const maxAge = 15 * 60 * 1000; // 15 minutes
-
-      return sessionAge < maxAge;
-    } catch {
-      return false;
-    }
+  // Obtenir l'espace utilisé
+  async getTotalUsedSpace(): Promise<number> {
+    return await this.storageService.getTotalUsedSpace();
   }
 
-  // Récupérer les données de session
-  static getSessionData(): { username: string; nasUrl: string; sessionId?: string } | null {
-    const sessionData = localStorage.getItem('mysafebox_session');
-    if (!sessionData || !APIService.isSessionValid()) return null;
-
-    try {
-      return JSON.parse(sessionData);
-    } catch {
-      return null;
-    }
-  }
-
-  // Restaurer la session existante
-  restoreSession(sessionId: string): void {
-    this.fileStationService.setSessionId(sessionId);
+  // Obtenir l'utilisateur actuel
+  getCurrentUser(): AuthUser {
+    return this.user;
   }
 }
