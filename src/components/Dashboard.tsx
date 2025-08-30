@@ -37,51 +37,60 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout
 
   return (
     <div className="h-screen bg-gray-900 flex flex-col">
-      {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex-shrink-0">
+      {/* Header - Responsive pour mobile */}
+      <header className="bg-gray-800 border-b border-gray-700 px-3 sm:px-6 py-2 sm:py-4 flex-shrink-0">
         <div className="flex items-center justify-between">
-          {/* Logo et titre */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3">
-              <img src="/MySafeBoxHeader.png" alt="MySafeBox" className="w-20 h-20" />
-              <div>
-                <h1 className="text-xl font-bold text-white">MySafeBox</h1>
-                <p className="text-sm text-gray-400">Coffre-fort numérique sécurisé</p>
+          {/* Logo et titre - Compact sur mobile */}
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <img src="/MySafeBoxHeader.png" alt="MySafeBox" className="w-12 h-12 sm:w-16 sm:h-16 flex-shrink-0" />
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-bold text-white truncate">MySafeBox</h1>
+                <p className="text-xs sm:text-sm text-gray-400 hidden sm:block">Coffre-fort numérique sécurisé</p>
               </div>
             </div>
 
-            {/* Badge de connexion */}
-            <ConnectionStatus />
+            {/* Badge de connexion - Caché sur très petit écran */}
+            <div className="hidden md:block">
+              <ConnectionStatus />
+            </div>
           </div>
 
-          {/* Actions utilisateur */}
-          <div className="flex items-center gap-4">
-            {/* Refresh connexion */}
+          {/* Actions utilisateur - Compact sur mobile */}
+          <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
+            {/* Badge connexion mobile */}
+            <div className="block md:hidden">
+              <ConnectionStatus />
+            </div>
+
+            {/* Refresh connexion - Plus petit sur mobile */}
             <button
               onClick={handleRefreshConnection}
-              className="btn-secondary"
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
               title="Actualiser la connexion"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
 
-            {/* Info utilisateur */}
-            <div className="flex items-center gap-3 text-gray-300">
-              <div className="flex items-center gap-2">
-                <UserIcon className="w-4 h-4" />
-                <span className="font-medium">{user.displayName || user.email}</span>
+            {/* Info utilisateur - Responsive */}
+            <div className="flex items-center gap-1 sm:gap-3 text-gray-300">
+              <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                <UserIcon className="w-4 h-4 flex-shrink-0" />
+                <span className="font-medium text-sm sm:text-base truncate max-w-24 sm:max-w-none">
+                  {user.displayName || user.email?.split('@')[0]}
+                </span>
               </div>
 
-              <div className="w-px h-6 bg-gray-600" />
+              <div className="w-px h-4 sm:h-6 bg-gray-600" />
 
-              {/* Déconnexion */}
+              {/* Déconnexion - Icon seule sur mobile */}
               <button
                 onClick={onLogout}
-                className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
+                className="flex items-center gap-1 sm:gap-2 p-2 sm:px-3 sm:py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
                 title="Se déconnecter"
               >
                 <LogOut className="w-4 h-4" />
-                <span className="hidden sm:block">Déconnexion</span>
+                <span className="hidden lg:block text-sm">Déconnexion</span>
               </button>
             </div>
           </div>

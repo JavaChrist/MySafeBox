@@ -56,17 +56,17 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ className = 
   };
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      {/* Badge principal */}
-      <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium ${getBadgeColor()}`}>
+    <div className={`flex items-center gap-1 ${className}`}>
+      {/* Badge principal - Compact */}
+      <div className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-md border text-xs font-medium ${getBadgeColor()}`}>
         {getIconComponent()}
-        <span>{connectionInfo.badge}</span>
+        <span className="hidden sm:inline">{connectionInfo.badge}</span>
       </div>
 
-      {/* Indicateur Firebase */}
-      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs">
+      {/* Indicateur Firebase - Compact */}
+      <div className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs">
         <span>🔥</span>
-        <span>Firebase</span>
+        <span className="hidden sm:inline">Firebase</span>
       </div>
     </div>
   );
