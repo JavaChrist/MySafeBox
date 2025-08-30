@@ -37,8 +37,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout
 
   return (
     <div className="h-screen bg-gray-900 flex flex-col">
-      {/* Header - Responsive pour mobile */}
-      <header className="bg-gray-800 border-b border-gray-700 px-3 sm:px-6 py-2 sm:py-4 flex-shrink-0">
+      {/* Header - Responsive pour mobile avec safe area iPhone */}
+      <header className="bg-gray-800 border-b border-gray-700 px-3 sm:px-6 py-2 sm:py-4 flex-shrink-0 pt-safe-top">
         <div className="flex items-center justify-between">
           {/* Logo et titre - Compact sur mobile */}
           <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">

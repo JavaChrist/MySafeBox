@@ -50,4 +50,13 @@
   .card {
     @apply bg-gray-800 rounded-lg border border-gray-700 p-4;
   }
+
+  /* Safe area pour iPhone (encoche/Dynamic Island) */
+  .pt-safe-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+  
+  .pb-safe-bottom {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
 }
