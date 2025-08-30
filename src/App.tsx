@@ -28,6 +28,41 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  // Déconnexion automatique à la fermeture de l'onglet/app
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (user) {
+        console.log('🚪 Fermeture de l\'app - Déconnexion automatique');
+        try {
+          await firebaseAuthService.logout();
+        } catch (error) {
+          console.error('Erreur déconnexion automatique:', error);
+        }
+      }
+    };
+
+    const handleVisibilityChange = async () => {
+      // Déconnexion quand l'onglet devient invisible (changement d'app mobile)
+      if (document.hidden && user) {
+        console.log('📱 App en arrière-plan - Déconnexion pour sécurité');
+        try {
+          await firebaseAuthService.logout();
+        } catch (error) {
+          console.error('Erreur déconnexion visibilité:', error);
+        }
+      }
+    };
+
+    // Événements de fermeture/changement d'onglet
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user]);
+
   // Gestion de la connexion
   const handleLogin = (loggedUser: AuthUser) => {
     // La mise à jour se fera automatiquement via onAuthStateChange
