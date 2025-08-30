@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertCircle, RefreshCw, UserPlus, Mail, User, Lock } from 'lucide-react';
+import { AlertCircle, RefreshCw, UserPlus, Mail, User, Lock, Eye, EyeOff } from 'lucide-react';
 import { firebaseAuthService, type AuthUser } from '../services/firebase-auth';
 
 interface LoginFormProps {
@@ -13,6 +13,7 @@ interface LoginFormState {
   isLoading: boolean;
   error: string | null;
   isRegisterMode: boolean;
+  showPassword: boolean;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
@@ -22,7 +23,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
     displayName: '',
     isLoading: false,
     error: null,
-    isRegisterMode: false
+    isRegisterMode: false,
+    showPassword: false
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -86,8 +88,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
       error: null,
       email: '',
       password: '',
-      displayName: ''
+      displayName: '',
+      showPassword: false
     }));
+  };
+
+  const togglePasswordVisibility = () => {
+    setState(prev => ({ ...prev, showPassword: !prev.showPassword }));
   };
 
   return (
@@ -161,18 +168,33 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 <Lock className="w-4 h-4 inline mr-2" />
                 Mot de passe
               </label>
-              <input
-                id="password"
-                type="password"
-                value={state.password}
-                onChange={handleInputChange('password')}
-                className="input-standard"
-                placeholder={state.isRegisterMode ? "Minimum 6 caractères" : "Votre mot de passe"}
-                autoComplete={state.isRegisterMode ? "new-password" : "current-password"}
-                disabled={state.isLoading}
-                required
-                minLength={6}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={state.showPassword ? "text" : "password"}
+                  value={state.password}
+                  onChange={handleInputChange('password')}
+                  className="input-standard pr-10"
+                  placeholder={state.isRegisterMode ? "Minimum 6 caractères" : "Votre mot de passe"}
+                  autoComplete={state.isRegisterMode ? "new-password" : "current-password"}
+                  disabled={state.isLoading}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={togglePasswordVisibility}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
+                  disabled={state.isLoading}
+                  tabIndex={-1}
+                >
+                  {state.showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Bouton principal */}
