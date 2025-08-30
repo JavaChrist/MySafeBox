@@ -63,6 +63,23 @@ function App() {
     };
   }, [user]);
 
+  // Détection PWA et ajustement safe area
+  useEffect(() => {
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                  (window.navigator as any).standalone ||
+                  document.referrer.includes('android-app://');
+    
+    if (isPWA) {
+      console.log('📱 Mode PWA détecté - Ajustement safe area');
+      document.documentElement.style.setProperty('--pwa-safe-top', '3rem');
+      document.body.classList.add('pwa-mode');
+    } else {
+      console.log('🌐 Mode navigateur détecté');
+      document.documentElement.style.setProperty('--pwa-safe-top', '0.5rem');
+      document.body.classList.remove('pwa-mode');
+    }
+  }, []);
+
   // Gestion de la connexion
   const handleLogin = (loggedUser: AuthUser) => {
     // La mise à jour se fera automatiquement via onAuthStateChange

@@ -53,17 +53,31 @@
 
   /* Safe area pour iPhone (encoche/Dynamic Island) */
   .pt-safe-top {
-    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-top: max(var(--pwa-safe-top, 0.5rem), env(safe-area-inset-top));
   }
   
   .pb-safe-bottom {
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 
-  /* Forcer le safe area en PWA standalone */
+  /* PWA mode - Safe area renforcée */
+  body.pwa-mode .pt-safe-top {
+    padding-top: max(3rem, env(safe-area-inset-top)) !important;
+  }
+
+  /* Forcer le safe area en PWA standalone - Fallback */
   @media (display-mode: standalone) {
     .pt-safe-top {
-      padding-top: max(1rem, env(safe-area-inset-top));
+      padding-top: max(3rem, env(safe-area-inset-top));
+    }
+  }
+
+  /* Support iOS Safari standalone (PWA) - Double sécurité */
+  @supports (-webkit-touch-callout: none) {
+    @media (display-mode: standalone) {
+      .pt-safe-top {
+        padding-top: max(3rem, env(safe-area-inset-top));
+      }
     }
   }
 }
