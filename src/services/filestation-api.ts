@@ -302,17 +302,26 @@ export class FirebaseStorageService {
       
       const downloadUrl = await getDownloadURL(fileRef);
       
-      // Utiliser directement l'URL Firebase (pas de fetch pour éviter CORS)
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = downloadUrl;
-      a.download = filename;
-      a.target = '_blank'; // Ouvrir dans nouvel onglet si nécessaire
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      // Détection mobile pour adapter la méthode
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
-      console.log('✅ Téléchargement réussi:', filename);
+      if (isMobile) {
+        // Sur mobile : ouvrir dans un nouvel onglet (iOS/Android)
+        console.log('📱 Mobile détecté - Ouverture nouvel onglet');
+        window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        // Sur desktop : téléchargement classique
+        console.log('💻 Desktop détecté - Téléchargement direct');
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      
+      console.log('✅ Téléchargement initié:', filename);
     } catch (error) {
       console.error('Erreur téléchargement:', error);
       throw new Error('Impossible de télécharger le fichier');
