@@ -292,30 +292,26 @@ export class FirebaseStorageService {
     }
   }
 
-  // Télécharger un fichier
+    // Télécharger un fichier
   async downloadFile(path: string, filename: string): Promise<void> {
     try {
       const userPath = this.getUserPath(path);
       const fileRef = ref(storage, userPath);
-
+      
       console.log('📥 Téléchargement:', userPath);
-
+      
       const downloadUrl = await getDownloadURL(fileRef);
-
-      // Créer un lien de téléchargement
-      const response = await fetch(downloadUrl);
-      const blob = await response.blob();
-
-      const url = window.URL.createObjectURL(blob);
+      
+      // Utiliser directement l'URL Firebase (pas de fetch pour éviter CORS)
       const a = document.createElement('a');
       a.style.display = 'none';
-      a.href = url;
+      a.href = downloadUrl;
       a.download = filename;
+      a.target = '_blank'; // Ouvrir dans nouvel onglet si nécessaire
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
+      
       console.log('✅ Téléchargement réussi:', filename);
     } catch (error) {
       console.error('Erreur téléchargement:', error);
