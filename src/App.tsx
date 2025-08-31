@@ -28,11 +28,16 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Déconnexion automatique uniquement à la fermeture d'onglet/app (pas sur changement d'application)
+  // Déconnexion automatique uniquement sur desktop à la fermeture d'onglet/app
   useEffect(() => {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      return;
+    }
+
     const handleBeforeUnload = async () => {
       if (user) {
-        console.log('🚪 Fermeture de l\'app - Déconnexion automatique');
+        console.log('🚪 Fermeture de l\'app (desktop) - Déconnexion automatique');
         try {
           await firebaseAuthService.logout();
         } catch (error) {
