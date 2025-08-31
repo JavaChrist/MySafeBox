@@ -106,6 +106,46 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
     loadFiles(currentPathRef.current);
   }, [loadFiles]);
 
+  // Upload (tente d'utiliser le sélecteur fichiers natif Android/Chrome si dispo)
+  const handleClickUpload = useCallback(async () => {
+    try {
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const win = window as unknown as {
+        showOpenFilePicker?: (options?: unknown) => Promise<Array<{ getFile: () => Promise<File> }>>;
+      };
+
+      if (isAndroid && typeof win.showOpenFilePicker === 'function') {
+        // Utilise le File System Access API (Android/Chrome) pour ouvrir "Documents/Fichiers"
+        const handles = await win.showOpenFilePicker({
+          multiple: true,
+          types: [
+            {
+              description: 'Tous les fichiers',
+              accept: { '*/*': ['.'] }
+            }
+          ]
+        });
+
+        setState(prev => ({ ...prev, isLoading: true, uploadProgress: 0 }));
+        for (let i = 0; i < handles.length; i++) {
+          const file = await handles[i].getFile();
+          await apiService.uploadFile(file, currentPathRef.current, (p) => {
+            const total = ((i / handles.length) * 100) + (p / handles.length);
+            setState(prev => ({ ...prev, uploadProgress: total }));
+          });
+        }
+        await reloadCurrentFolder();
+        setState(prev => ({ ...prev, isLoading: false, uploadProgress: 0 }));
+        return;
+      }
+    } catch (err) {
+      console.warn('Sélecteur fichiers natif indisponible, fallback input:', err);
+    }
+
+    // Fallback: input file caché
+    document.getElementById('file-upload')?.click();
+  }, [apiService, reloadCurrentFolder]);
+
   // Aller à la racine
   const goHome = useCallback(() => {
     loadFiles('');
@@ -338,7 +378,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
           {state.currentPath !== '/' && (
             <button
               className="inline-flex items-center justify-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 w-[75px]"
-              onClick={() => document.getElementById('file-upload')?.click()}
+              onClick={handleClickUpload}
               title="Upload de fichiers"
             >
               <Upload className="w-3 h-3 mr-1.5" />

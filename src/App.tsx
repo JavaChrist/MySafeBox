@@ -55,9 +55,9 @@ function App() {
   // Détection PWA et ajustement safe area
   useEffect(() => {
     const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
-                  (window.navigator as any).standalone ||
-                  document.referrer.includes('android-app://');
-    
+      (window.navigator as any).standalone ||
+      document.referrer.includes('android-app://');
+
     if (isPWA) {
       console.log('📱 Mode PWA détecté - Ajustement safe area');
       document.documentElement.style.setProperty('--pwa-safe-top', '3rem');
