@@ -304,13 +304,35 @@ export class FirebaseStorageService {
       
       // Détection mobile pour adapter la méthode
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
-      if (isMobile) {
-        // Sur mobile : ouvrir dans un nouvel onglet (iOS/Android)
-        console.log('📱 Mobile détecté - Ouverture nouvel onglet');
+      console.log('🔍 Détection appareil:', { isMobile, isIOS, userAgent: navigator.userAgent });
+      
+      if (isIOS) {
+        // iOS : Méthode spéciale pour contourner les restrictions Safari
+        console.log('📱 iOS détecté - Méthode spéciale');
+        
+        // Créer un lien temporaire et forcer le clic immédiat
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        
+        // Ajouter temporairement au DOM pour que le clic fonctionne
+        document.body.appendChild(a);
+        
+        // Déclencher immédiatement (pas d'await)
+        setTimeout(() => {
+          a.click();
+          document.body.removeChild(a);
+        }, 0);
+        
+      } else if (isMobile) {
+        // Android : ouverture nouvel onglet
+        console.log('📱 Android détecté - Nouvel onglet');
         window.open(downloadUrl, '_blank', 'noopener,noreferrer');
       } else {
-        // Sur desktop : téléchargement classique
+        // Desktop : téléchargement classique
         console.log('💻 Desktop détecté - Téléchargement direct');
         const a = document.createElement('a');
         a.style.display = 'none';
