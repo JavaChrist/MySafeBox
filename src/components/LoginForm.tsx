@@ -111,9 +111,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
 
     try {
       await firebaseAuthService.resetPassword(state.email.trim());
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false, 
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
         resetSuccess: true,
         error: null
       }));
@@ -148,7 +148,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
           <h1 className="text-3xl font-bold text-white mb-2">MySafeBox</h1>
           <p className="text-gray-400">
             {state.resetPasswordMode ? 'Réinitialiser le mot de passe' :
-             state.isRegisterMode ? 'Créer un compte' : 'Coffre-fort numérique sécurisé'}
+              state.isRegisterMode ? 'Créer un compte' : 'Coffre-fort numérique sécurisé'}
           </p>
         </div>
 
@@ -165,9 +165,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
               </p>
               <button
                 type="button"
-                onClick={() => setState(prev => ({ 
-                  ...prev, 
-                  resetPasswordMode: false, 
+                onClick={() => setState(prev => ({
+                  ...prev,
+                  resetPasswordMode: false,
                   resetSuccess: false,
                   email: '',
                   error: null
@@ -178,123 +178,123 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
               </button>
             </div>
           ) : (
-            <form onSubmit={state.resetPasswordMode ? 
-              (e) => { e.preventDefault(); handleResetPassword(); } : 
+            <form onSubmit={state.resetPasswordMode ?
+              (e) => { e.preventDefault(); handleResetPassword(); } :
               handleSubmit
             } className="space-y-6">
-            {/* Message d'erreur */}
-            {state.error && (
-              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                <span className="text-red-400 text-sm">{state.error}</span>
-              </div>
-            )}
+              {/* Message d'erreur */}
+              {state.error && (
+                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-md">
+                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                  <span className="text-red-400 text-sm">{state.error}</span>
+                </div>
+              )}
 
-            {/* Champ nom (inscription uniquement) */}
-            {state.isRegisterMode && !state.resetPasswordMode && (
+              {/* Champ nom (inscription uniquement) */}
+              {state.isRegisterMode && !state.resetPasswordMode && (
+                <div>
+                  <label htmlFor="displayName" className="block text-sm font-medium text-gray-300 mb-2">
+                    <User className="w-4 h-4 inline mr-2" />
+                    Nom complet
+                  </label>
+                  <input
+                    id="displayName"
+                    type="text"
+                    value={state.displayName}
+                    onChange={handleInputChange('displayName')}
+                    className="input-standard"
+                    placeholder="Votre nom complet"
+                    autoComplete="name"
+                    disabled={state.isLoading}
+                    required={state.isRegisterMode}
+                  />
+                </div>
+              )}
+
+              {/* Champ email */}
               <div>
-                <label htmlFor="displayName" className="block text-sm font-medium text-gray-300 mb-2">
-                  <User className="w-4 h-4 inline mr-2" />
-                  Nom complet
+                <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                  <Mail className="w-4 h-4 inline mr-2" />
+                  Email
                 </label>
                 <input
-                  id="displayName"
-                  type="text"
-                  value={state.displayName}
-                  onChange={handleInputChange('displayName')}
+                  id="email"
+                  type="email"
+                  value={state.email}
+                  onChange={handleInputChange('email')}
                   className="input-standard"
-                  placeholder="Votre nom complet"
-                  autoComplete="name"
-                  disabled={state.isLoading}
-                  required={state.isRegisterMode}
-                />
-              </div>
-            )}
-
-            {/* Champ email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                <Mail className="w-4 h-4 inline mr-2" />
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={state.email}
-                onChange={handleInputChange('email')}
-                className="input-standard"
-                placeholder="votre@email.com"
-                autoComplete="email"
-                disabled={state.isLoading}
-                required
-              />
-            </div>
-
-            {/* Champ mot de passe (pas en mode reset) */}
-            {!state.resetPasswordMode && (
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                <Lock className="w-4 h-4 inline mr-2" />
-                Mot de passe
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={state.showPassword ? "text" : "password"}
-                  value={state.password}
-                  onChange={handleInputChange('password')}
-                  className="input-standard pr-10"
-                  placeholder={state.isRegisterMode ? "Minimum 6 caractères" : "Votre mot de passe"}
-                  autoComplete={state.isRegisterMode ? "new-password" : "current-password"}
+                  placeholder="votre@email.com"
+                  autoComplete="email"
                   disabled={state.isLoading}
                   required
-                  minLength={6}
                 />
-                <button
-                  type="button"
-                  onClick={togglePasswordVisibility}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
-                  disabled={state.isLoading}
-                  tabIndex={-1}
-                >
-                  {state.showPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
               </div>
-            </div>
-            )}
 
-            {/* Bouton principal */}
-            <button
-              type="submit"
-              disabled={state.isLoading}
-              className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {state.isLoading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  {state.resetPasswordMode ? 'Envoi en cours...' :
-                   state.isRegisterMode ? 'Création en cours...' : 'Connexion en cours...'}
-                </>
-              ) : (
-                <>
-                  {state.resetPasswordMode ? (
-                    'Envoyer l\'email'
-                  ) : state.isRegisterMode ? (
-                    <>
-                      <UserPlus className="w-4 h-4" />
-                      Créer un compte
-                    </>
-                  ) : (
-                    'Se connecter'
-                  )}
-                </>
+              {/* Champ mot de passe (pas en mode reset) */}
+              {!state.resetPasswordMode && (
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                    <Lock className="w-4 h-4 inline mr-2" />
+                    Mot de passe
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={state.showPassword ? "text" : "password"}
+                      value={state.password}
+                      onChange={handleInputChange('password')}
+                      className="input-standard pr-10"
+                      placeholder={state.isRegisterMode ? "Minimum 6 caractères" : "Votre mot de passe"}
+                      autoComplete={state.isRegisterMode ? "new-password" : "current-password"}
+                      disabled={state.isLoading}
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={togglePasswordVisibility}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
+                      disabled={state.isLoading}
+                      tabIndex={-1}
+                    >
+                      {state.showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
               )}
-            </button>
-          </form>
+
+              {/* Bouton principal */}
+              <button
+                type="submit"
+                disabled={state.isLoading}
+                className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {state.isLoading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    {state.resetPasswordMode ? 'Envoi en cours...' :
+                      state.isRegisterMode ? 'Création en cours...' : 'Connexion en cours...'}
+                  </>
+                ) : (
+                  <>
+                    {state.resetPasswordMode ? (
+                      'Envoyer l\'email'
+                    ) : state.isRegisterMode ? (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        Créer un compte
+                      </>
+                    ) : (
+                      'Se connecter'
+                    )}
+                  </>
+                )}
+              </button>
+            </form>
           )}
 
           {/* Navigation entre modes */}
@@ -313,7 +313,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                     'Pas de compte ? S\'inscrire'
                   )}
                 </button>
-                
+
                 {!state.isRegisterMode && (
                   <button
                     type="button"

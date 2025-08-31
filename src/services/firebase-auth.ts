@@ -5,7 +5,8 @@ import {
   onAuthStateChanged,
   updateProfile,
   sendPasswordResetEmail,
-  type User
+  type User,
+  type AuthError
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 
@@ -30,9 +31,10 @@ export class FirebaseAuthService {
         displayName: user.displayName,
         photoURL: user.photoURL
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erreur de connexion:', error);
-      throw new Error(this.getErrorMessage(error.code));
+      const authError = error as AuthError;
+      throw new Error(this.getErrorMessage(authError.code));
     }
   }
 
@@ -51,9 +53,10 @@ export class FirebaseAuthService {
         displayName: displayName,
         photoURL: user.photoURL
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erreur d\'inscription:', error);
-      throw new Error(this.getErrorMessage(error.code));
+      const authError = error as AuthError;
+      throw new Error(this.getErrorMessage(authError.code));
     }
   }
 
@@ -72,9 +75,10 @@ export class FirebaseAuthService {
     try {
       await sendPasswordResetEmail(auth, email);
       console.log('Email de réinitialisation envoyé à:', email);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erreur réinitialisation mot de passe:', error);
-      throw new Error(this.getErrorMessage(error.code));
+      const authError = error as AuthError;
+      throw new Error(this.getErrorMessage(authError.code));
     }
   }
 
