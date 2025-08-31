@@ -330,6 +330,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
           {/* Actions */}
           <input
             type="file"
+            accept="*/*"
             multiple
             className="hidden"
             id="file-upload"

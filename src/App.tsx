@@ -28,7 +28,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Déconnexion automatique à la fermeture de l'onglet/app
+  // Déconnexion automatique uniquement à la fermeture d'onglet/app (pas sur changement d'application)
   useEffect(() => {
     const handleBeforeUnload = async () => {
       if (user) {
@@ -41,25 +41,9 @@ function App() {
       }
     };
 
-    const handleVisibilityChange = async () => {
-      // Déconnexion quand l'onglet devient invisible (changement d'app mobile)
-      if (document.hidden && user) {
-        console.log('📱 App en arrière-plan - Déconnexion pour sécurité');
-        try {
-          await firebaseAuthService.logout();
-        } catch (error) {
-          console.error('Erreur déconnexion visibilité:', error);
-        }
-      }
-    };
-
-    // Événements de fermeture/changement d'onglet
     window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user]);
 
