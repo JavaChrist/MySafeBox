@@ -14,6 +14,8 @@ interface LoginFormState {
   error: string | null;
   isRegisterMode: boolean;
   showPassword: boolean;
+  resetPasswordMode: boolean;
+  resetSuccess: boolean;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
@@ -24,7 +26,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
     isLoading: false,
     error: null,
     isRegisterMode: false,
-    showPassword: false
+    showPassword: false,
+    resetPasswordMode: false,
+    resetSuccess: false
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -97,6 +101,42 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
     setState(prev => ({ ...prev, showPassword: !prev.showPassword }));
   };
 
+  const handleResetPassword = async () => {
+    if (!state.email.trim()) {
+      setState(prev => ({ ...prev, error: 'Veuillez entrer votre email' }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      await firebaseAuthService.resetPassword(state.email.trim());
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        resetSuccess: true,
+        error: null
+      }));
+    } catch (error) {
+      console.error('Reset password error:', error);
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Erreur lors de l\'envoi'
+      }));
+    }
+  };
+
+  const toggleResetMode = () => {
+    setState(prev => ({
+      ...prev,
+      resetPasswordMode: !prev.resetPasswordMode,
+      error: null,
+      resetSuccess: false,
+      showPassword: false
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
@@ -107,13 +147,41 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">MySafeBox</h1>
           <p className="text-gray-400">
-            {state.isRegisterMode ? 'Créer un compte' : 'Coffre-fort numérique sécurisé'}
+            {state.resetPasswordMode ? 'Réinitialiser le mot de passe' :
+             state.isRegisterMode ? 'Créer un compte' : 'Coffre-fort numérique sécurisé'}
           </p>
         </div>
 
-        {/* Formulaire de connexion/inscription */}
+        {/* Formulaire de connexion/inscription/reset */}
         <div className="card">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {state.resetSuccess ? (
+            /* Message de succès reset password */
+            <div className="text-center">
+              <div className="text-green-400 mb-4">
+                ✅ Email envoyé avec succès !
+              </div>
+              <p className="text-gray-300 mb-6">
+                Vérifiez votre boîte email et suivez les instructions pour réinitialiser votre mot de passe.
+              </p>
+              <button
+                type="button"
+                onClick={() => setState(prev => ({ 
+                  ...prev, 
+                  resetPasswordMode: false, 
+                  resetSuccess: false,
+                  email: '',
+                  error: null
+                }))}
+                className="btn-primary w-full"
+              >
+                Retour à la connexion
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={state.resetPasswordMode ? 
+              (e) => { e.preventDefault(); handleResetPassword(); } : 
+              handleSubmit
+            } className="space-y-6">
             {/* Message d'erreur */}
             {state.error && (
               <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-md">
@@ -123,7 +191,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
             )}
 
             {/* Champ nom (inscription uniquement) */}
-            {state.isRegisterMode && (
+            {state.isRegisterMode && !state.resetPasswordMode && (
               <div>
                 <label htmlFor="displayName" className="block text-sm font-medium text-gray-300 mb-2">
                   <User className="w-4 h-4 inline mr-2" />
@@ -162,7 +230,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
               />
             </div>
 
-            {/* Champ mot de passe */}
+            {/* Champ mot de passe (pas en mode reset) */}
+            {!state.resetPasswordMode && (
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
                 <Lock className="w-4 h-4 inline mr-2" />
@@ -196,6 +265,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 </button>
               </div>
             </div>
+            )}
 
             {/* Bouton principal */}
             <button
@@ -206,11 +276,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
               {state.isLoading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  {state.isRegisterMode ? 'Création en cours...' : 'Connexion en cours...'}
+                  {state.resetPasswordMode ? 'Envoi en cours...' :
+                   state.isRegisterMode ? 'Création en cours...' : 'Connexion en cours...'}
                 </>
               ) : (
                 <>
-                  {state.isRegisterMode ? (
+                  {state.resetPasswordMode ? (
+                    'Envoyer l\'email'
+                  ) : state.isRegisterMode ? (
                     <>
                       <UserPlus className="w-4 h-4" />
                       Créer un compte
@@ -222,29 +295,46 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
               )}
             </button>
           </form>
+          )}
 
-          {/* Basculer entre connexion et inscription */}
-          <div className="mt-6 pt-6 border-t border-gray-700 text-center">
-            <button
-              type="button"
-              onClick={toggleMode}
-              disabled={state.isLoading}
-              className="text-blue-400 hover:text-blue-300 text-sm transition-colors disabled:opacity-50"
-            >
-              {state.isRegisterMode ? (
-                'Déjà un compte ? Se connecter'
-              ) : (
-                'Pas de compte ? S\'inscrire'
-              )}
-            </button>
-          </div>
-
-          {/* Informations */}
-          <div className="mt-6 pt-6 border-t border-gray-700">
-            <div className="text-center text-sm text-gray-400">
-              <p>🔥 Powered by Firebase</p>
-              <p className="mt-1">Authentification et stockage sécurisés</p>
-            </div>
+          {/* Navigation entre modes */}
+          <div className="mt-6 pt-6 border-t border-gray-700 text-center space-y-3">
+            {!state.resetPasswordMode ? (
+              <>
+                <button
+                  type="button"
+                  onClick={toggleMode}
+                  disabled={state.isLoading}
+                  className="text-blue-400 hover:text-blue-300 text-sm transition-colors disabled:opacity-50 block w-full"
+                >
+                  {state.isRegisterMode ? (
+                    'Déjà un compte ? Se connecter'
+                  ) : (
+                    'Pas de compte ? S\'inscrire'
+                  )}
+                </button>
+                
+                {!state.isRegisterMode && (
+                  <button
+                    type="button"
+                    onClick={toggleResetMode}
+                    disabled={state.isLoading}
+                    className="text-gray-400 hover:text-gray-300 text-sm transition-colors disabled:opacity-50"
+                  >
+                    Mot de passe oublié ?
+                  </button>
+                )}
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={toggleResetMode}
+                disabled={state.isLoading}
+                className="text-blue-400 hover:text-blue-300 text-sm transition-colors disabled:opacity-50"
+              >
+                Retour à la connexion
+              </button>
+            )}
           </div>
         </div>
       </div>

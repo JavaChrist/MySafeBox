@@ -4,6 +4,7 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  sendPasswordResetEmail,
   type User
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
@@ -63,6 +64,17 @@ export class FirebaseAuthService {
     } catch (error) {
       console.error('Erreur de déconnexion:', error);
       throw error;
+    }
+  }
+
+  // Réinitialisation du mot de passe
+  async resetPassword(email: string): Promise<void> {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      console.log('Email de réinitialisation envoyé à:', email);
+    } catch (error: any) {
+      console.error('Erreur réinitialisation mot de passe:', error);
+      throw new Error(this.getErrorMessage(error.code));
     }
   }
 
