@@ -357,15 +357,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
             </button>
           )}
 
-          {state.selectedFiles.length > 0 && (
-            <button
-              className="btn-secondary bg-red-600 hover:bg-red-700 text-white"
-              onClick={openDeleteModal}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Supprimer
-            </button>
-          )}
+
         </div>
 
         {/* Breadcrumb */}
@@ -472,20 +464,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
               </div>
             )}
 
-            {/* Message informatif dans le dossier racine */}
-            {state.currentPath === '' && (
-              <div className="bg-blue-900 bg-opacity-30 border border-blue-700 rounded-lg p-4 mb-4">
-                <div className="flex items-center gap-3 text-blue-300">
-                  <Home className="w-5 h-5" />
-                  <div>
-                    <div className="font-medium">Bienvenue {user.displayName || user.email}</div>
-                    <div className="text-sm text-blue-400">
-                      Voici votre coffre-fort personnel sécurisé sur Firebase
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+
 
             {/* Liste/Grille des fichiers */}
             {filteredAndSortedFiles.length === 0 ? (
