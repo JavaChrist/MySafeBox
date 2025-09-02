@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogOut, User as UserIcon, RefreshCw } from 'lucide-react';
+import { LogOut, User as UserIcon } from 'lucide-react';
 import type { AuthUser } from '../services/firebase-auth';
 import { APIService } from '../services/api';
 import { ConnectionStatus } from './ConnectionStatus';
@@ -31,11 +31,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout
     resetTimer();
   };
 
-  // Refresh de la connexion
-  const handleRefreshConnection = () => {
-    resetTimer();
-    // TODO: Optionnel - ping API pour vérifier la connexion
-  };
+  // Refresh supprimé du header; le refresh reste dans le FileExplorer
 
   return (
     <div className="h-screen bg-gray-900 flex flex-col">
@@ -75,23 +71,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout
               <ConnectionStatus />
             </div>
 
-            {/* Refresh connexion - Plus petit sur mobile */}
-            <button
-              onClick={handleRefreshConnection}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
-              title="Actualiser la connexion"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-
             {/* Info utilisateur - Responsive */}
             <div className="flex items-center gap-1 sm:gap-3 text-gray-300">
               <div className="flex items-center gap-1 sm:gap-2 min-w-0">
                 <UserIcon className="w-4 h-4 flex-shrink-0" />
                 <span className="font-medium text-sm sm:text-base truncate max-w-24 sm:max-w-none">
-                  {user.displayName && user.displayName.trim().length > 0
+                  {(user.displayName && user.displayName.trim().length > 0)
                     ? user.displayName
-                    : (user.email ? user.email.split('@')[0] : '')}
+                    : (user.email ? user.email.split('@')[0] : 'Utilisateur')}
                 </span>
               </div>
 

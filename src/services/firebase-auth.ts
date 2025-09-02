@@ -31,6 +31,16 @@ export class FirebaseAuthService {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      // Si aucun displayName (anciens comptes), définir un nom par défaut basé sur l'email
+      if (!user.displayName) {
+        const fallbackName = user.email ? user.email.split('@')[0] : 'Utilisateur';
+        try {
+          await updateProfile(user, { displayName: fallbackName });
+        } catch (e) {
+          // ignore si non critique
+        }
+      }
+
       return {
         uid: user.uid,
         email: user.email,
