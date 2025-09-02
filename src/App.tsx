@@ -3,11 +3,13 @@ import { LoginForm } from './components/LoginForm';
 import { Dashboard } from './components/Dashboard';
 import { firebaseAuthService, type AuthUser } from './services/firebase-auth';
 import { APIService } from './services/api';
+import { useServiceWorkerUpdate } from './utils/useServiceWorkerUpdate';
 
 function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [apiService, setApiService] = useState<APIService | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  useServiceWorkerUpdate();
 
   // Écouter les changements d'authentification Firebase
   useEffect(() => {

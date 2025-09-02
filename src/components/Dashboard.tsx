@@ -6,6 +6,7 @@ import { ConnectionStatus } from './ConnectionStatus';
 import { FileExplorer } from './FileExplorer';
 import { InactivityWarning } from './InactivityWarning';
 import { useInactivityTimer } from '../utils/useInactivityTimer';
+import { useServiceWorkerUpdate } from '../utils/useServiceWorkerUpdate';
 
 interface DashboardProps {
   user: AuthUser;
@@ -15,6 +16,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout }) => {
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const { updateReady, updating, update } = useServiceWorkerUpdate();
 
   // Timer d'inactivité
   const handleInactivityWarning = () => {
@@ -58,6 +60,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout
 
           {/* Actions utilisateur - Compact sur mobile */}
           <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
+            {/* SW update banner (compact) */}
+            {updateReady && (
+              <button
+                onClick={update}
+                className="px-2 py-1 text-xs rounded bg-yellow-500/20 text-yellow-300 border border-yellow-600"
+                title={updating ? 'Mise à jour en cours...' : 'Nouvelle version disponible'}
+              >
+                {updating ? 'Mise à jour...' : 'Mettre à jour'}
+              </button>
+            )}
             {/* Badge connexion mobile */}
             <div className="block md:hidden">
               <ConnectionStatus />
