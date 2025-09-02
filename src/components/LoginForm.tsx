@@ -16,6 +16,7 @@ interface LoginFormState {
   showPassword: boolean;
   resetPasswordMode: boolean;
   resetSuccess: boolean;
+  rememberMe: boolean;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
@@ -28,7 +29,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
     isRegisterMode: false,
     showPassword: false,
     resetPasswordMode: false,
-    resetSuccess: false
+    resetSuccess: false,
+    rememberMe: false
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,7 +63,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         // Connexion
         user = await firebaseAuthService.login(
           state.email.trim(),
-          state.password
+          state.password,
+          state.rememberMe
         );
       }
 
@@ -265,6 +268,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {/* Se souvenir de moi */}
+              {!state.resetPasswordMode && (
+                <label className="flex items-center gap-2 text-gray-300 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={state.rememberMe}
+                    onChange={(e) => setState(prev => ({ ...prev, rememberMe: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                    disabled={state.isLoading}
+                  />
+                  <span>Se souvenir de moi</span>
+                </label>
               )}
 
               {/* Bouton principal */}

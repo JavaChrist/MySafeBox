@@ -77,7 +77,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout
               <div className="flex items-center gap-1 sm:gap-2 min-w-0">
                 <UserIcon className="w-4 h-4 flex-shrink-0" />
                 <span className="font-medium text-sm sm:text-base truncate max-w-24 sm:max-w-none">
-                  {user.displayName || user.email?.split('@')[0]}
+                  {user.displayName && user.displayName.trim().length > 0
+                    ? user.displayName
+                    : (user.email ? user.email.split('@')[0] : '')}
                 </span>
               </div>
 

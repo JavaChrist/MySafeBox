@@ -292,41 +292,41 @@ export class FirebaseStorageService {
     }
   }
 
-    // Télécharger un fichier
+  // Télécharger un fichier
   async downloadFile(path: string, filename: string): Promise<void> {
     try {
       const userPath = this.getUserPath(path);
       const fileRef = ref(storage, userPath);
-      
+
       console.log('📥 Téléchargement:', userPath);
-      
+
       const downloadUrl = await getDownloadURL(fileRef);
-      
+
       // Détection mobile pour adapter la méthode
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-      
+
       console.log('🔍 Détection appareil:', { isMobile, isIOS, userAgent: navigator.userAgent });
-      
+
       if (isIOS) {
         // iOS : Méthode spéciale pour contourner les restrictions Safari
         console.log('📱 iOS détecté - Méthode spéciale');
-        
+
         // Créer un lien temporaire et forcer le clic immédiat
         const a = document.createElement('a');
         a.href = downloadUrl;
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
-        
+
         // Ajouter temporairement au DOM pour que le clic fonctionne
         document.body.appendChild(a);
-        
+
         // Déclencher immédiatement (pas d'await)
         setTimeout(() => {
           a.click();
           document.body.removeChild(a);
         }, 0);
-        
+
       } else if (isMobile) {
         // Android : ouverture nouvel onglet
         console.log('📱 Android détecté - Nouvel onglet');
@@ -342,7 +342,7 @@ export class FirebaseStorageService {
         a.click();
         document.body.removeChild(a);
       }
-      
+
       console.log('✅ Téléchargement initié:', filename);
     } catch (error) {
       console.error('Erreur téléchargement:', error);

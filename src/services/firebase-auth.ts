@@ -5,6 +5,9 @@ import {
   onAuthStateChanged,
   updateProfile,
   sendPasswordResetEmail,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   type User,
   type AuthError
 } from 'firebase/auth';
@@ -20,8 +23,11 @@ export interface AuthUser {
 export class FirebaseAuthService {
 
   // Connexion avec email/mot de passe
-  async login(email: string, password: string): Promise<AuthUser> {
+  async login(email: string, password: string, rememberMe: boolean = false): Promise<AuthUser> {
     try {
+      // Persistance: session par défaut, locale si "se souvenir de moi"
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
@@ -68,6 +74,15 @@ export class FirebaseAuthService {
       console.error('Erreur de déconnexion:', error);
       throw error;
     }
+  }
+
+  // Mettre à jour le nom complet de l'utilisateur courant
+  async updateDisplayName(displayName: string): Promise<void> {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error('Aucun utilisateur connecté');
+    }
+    await updateProfile(user, { displayName });
   }
 
   // Réinitialisation du mot de passe
