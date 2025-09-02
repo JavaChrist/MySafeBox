@@ -36,7 +36,7 @@ export class FirebaseAuthService {
         const fallbackName = user.email ? user.email.split('@')[0] : 'Utilisateur';
         try {
           await updateProfile(user, { displayName: fallbackName });
-        } catch (e) {
+        } catch {
           // ignore si non critique
         }
       }
