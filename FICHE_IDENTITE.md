@@ -20,7 +20,7 @@ Garder ses documents et autres fichiers au même endroit, les retrouver et les c
 ## Statut
 En développement.
 
-Le parcours principal fonctionne : compte, liste des fichiers, aperçu, envoi, renommage, déplacement, dossiers, téléchargement et suppression. Chaque compte n’accède qu’à son propre dossier, et la session se ferme après 15 minutes sans activité. Quelques finitions manquent encore : le téléchargement ne porte que sur un fichier à la fois, la création d’un dossier et la suppression n’expliquent pas la cause d’un échec, et le fonctionnement hors ligne n’est pas fiable. Le renommage, le déplacement et l’aperçu des textes ont été vérifiés en local ; leur fonctionnement sur la version en ligne reste à confirmer. D’anciens textes du dépôt parlent d’un coffre-fort sur un serveur NAS ; l’application actuelle enregistre les fichiers chez Firebase et n’utilise plus ce serveur.
+Le parcours principal fonctionne : compte, liste des fichiers, aperçu, envoi, renommage, déplacement, dossiers, téléchargement et suppression. Chaque compte n’accède qu’à son propre dossier, et la session se ferme après 15 minutes sans activité. Quelques finitions manquent encore : le téléchargement ne porte que sur un fichier à la fois, la création d’un dossier et la suppression n’expliquent pas la cause d’un échec, et le fonctionnement hors ligne n’est pas fiable. Le renommage, le déplacement et l’aperçu des textes ont été vérifiés en local, et leurs fonctions serveur sont en place sur le site en ligne. D’anciens textes du dépôt parlent d’un coffre-fort sur un serveur NAS ; l’application actuelle enregistre les fichiers chez Firebase et n’utilise plus ce serveur.
 
 ## Adresse du site
-À confirmer
+https://www.mysafebox.fr/

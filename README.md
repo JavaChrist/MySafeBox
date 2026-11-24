@@ -119,11 +119,13 @@ firebase deploy --only storage --project <identifiant-du-projet>
 | `firebase deploy --only storage` | Publie les règles de `storage.rules` |
 | `bash deploy.sh` | Construit le site puis lance un déploiement Vercel de production si la clé Firebase est présente dans l’environnement |
 
-Le script `deploy.sh` et le fichier `vercel.json` préparent un hébergement. Leur présence ne signifie pas qu’un site est en ligne.
+Le site en ligne est hébergé sur Vercel (voir « Adresse du site »).
 
 ## Adresse du site
 
-À confirmer. Le code actuel ne contient pas d’adresse de production. D’anciens documents citent `https://mysafebox.fr` et `https://app.mysafebox.fr` pour la version NAS. Ces adresses ne sont pas vérifiées pour l’application Firebase actuelle.
+[https://www.mysafebox.fr](https://www.mysafebox.fr/). L’adresse `https://mysafebox.fr` y redirige.
+
+Les deux fonctions serveur répondent sur cette adresse (`/api/rename-storage` et `/api/preview-text`). D’anciens documents citent aussi `https://app.mysafebox.fr` pour la version NAS : cette adresse n’est pas décrite ici.
 
 ## Documents du dépôt
 
