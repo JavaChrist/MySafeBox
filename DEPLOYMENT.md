@@ -17,20 +17,13 @@
 
 3. **Configuration Storage**
 
-   ```
-   Storage > Règles > Remplacer par :
+   Les règles sont dans `storage.rules` à la racine du dépôt. Elles n’autorisent chaque compte qu’à lire et écrire dans `users/{son identifiant}/`. Pour les publier avec un compte Firebase qui a accès au projet :
+
+   ```bash
+   firebase deploy --only storage --project <identifiant-du-projet>
    ```
 
-   ```javascript
-   rules_version = '2';
-   service firebase.storage {
-     match /b/{bucket}/o {
-       match /users/{userId}/{allPaths=**} {
-         allow read, write: if request.auth != null && request.auth.uid == userId;
-       }
-     }
-   }
-   ```
+   On peut aussi coller le contenu de `storage.rules` dans la console : Storage > Règles.
 
 4. **Récupérer la configuration**
    - Project Settings > General > Your apps > Web app
@@ -67,6 +60,12 @@ VITE_FIREBASE_APP_ID=your_app_id
    - Ajoutez toutes les variables Firebase dans l'onglet "Environment Variables"
    - Pour chaque environnement : Production, Preview, Development
 
+4. **Fonctions serveur**
+   - Le dossier `api/` contient deux fonctions Vercel : `rename-storage` (renommage et déplacement) et `preview-text` (aperçu des fichiers texte).
+   - Elles sont nécessaires, car Firebase empêche le navigateur de lire directement le contenu d’un fichier stocké.
+   - `vercel.json` renvoie toutes les adresses vers `index.html`, sauf celles qui commencent par `/api/`.
+   - Après un déploiement, vérifiez qu’un renommage et l’aperçu d’un fichier texte fonctionnent sur le site en ligne.
+
 ## Structure des données Firebase
 
 Les fichiers sont organisés comme suit dans Firebase Storage :
@@ -83,16 +82,18 @@ Chaque utilisateur ne peut accéder qu'à ses propres fichiers grâce aux règle
 
 ## Fonctionnalités
 
-✅ **Implémenté :**
+Implémenté :
 
-- Authentification Firebase (connexion/inscription)
+- Authentification Firebase (connexion, inscription, « Se souvenir de moi », déconnexion après inactivité)
 - Stockage Firebase Storage
-- Upload de fichiers avec progress
+- Envoi de fichiers avec progression réelle
 - Navigation dans les dossiers
+- Aperçu des fichiers dans l’application
+- Renommage et déplacement de fichiers et de dossiers
 - Création de dossiers
-- Suppression de fichiers/dossiers
+- Suppression de fichiers et de dossiers
 - Téléchargement de fichiers
-- Interface responsive
-- Sécurité (isolation des données par utilisateur)
+- Interface adaptée au téléphone
+- Isolation des données par utilisateur (règles `storage.rules`)
 
-🚀 **Prêt pour la production !**
+Les limites connues sont décrites dans `README.md`.
