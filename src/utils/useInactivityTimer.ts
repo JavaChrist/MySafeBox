@@ -2,7 +2,8 @@ import { useEffect, useCallback, useRef } from 'react';
 
 export const useInactivityTimer = (
   onTimeout: () => void,
-  timeout: number = 900000 // 15 minutes par défaut
+  timeout: number = 900000, // 15 minutes par défaut
+  enabled: boolean = true
 ) => {
   const timerRef = useRef<number | null>(null);
   const onTimeoutRef = useRef(onTimeout);
@@ -38,6 +39,11 @@ export const useInactivityTimer = (
 
   // Configuration des événements d'activité
   useEffect(() => {
+    if (!enabled) {
+      stopTimer();
+      return;
+    }
+
     const events = [
       'mousedown', 'mousemove', 'keypress', 'scroll',
       'touchstart', 'click', 'keydown'
@@ -62,7 +68,7 @@ export const useInactivityTimer = (
       });
       stopTimer();
     };
-  }, [resetTimer, startTimer, stopTimer]);
+  }, [enabled, resetTimer, startTimer, stopTimer]);
 
   return {
     resetTimer,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LogOut, User as UserIcon } from 'lucide-react';
 import type { AuthUser } from '../services/firebase-auth';
 import { APIService } from '../services/api';
@@ -16,17 +16,34 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout }) => {
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(60);
   const [updateLater, setUpdateLater] = useState(false);
   const { updateReady, updating, update } = useServiceWorkerUpdate();
+  const logoutRef = useRef(onLogout);
+  logoutRef.current = onLogout;
 
-  // Timer d'inactivité
+  // Timer d'inactivité : avertissement à 14 minutes, puis fermeture au bout d'une minute
   const handleInactivityWarning = () => {
     setShowInactivityWarning(true);
   };
 
-  const { resetTimer } = useInactivityTimer(handleInactivityWarning, 840000); // 14 minutes
+  const { resetTimer } = useInactivityTimer(handleInactivityWarning, 840000, !showInactivityWarning);
 
-  // Rester connecté (fermer warning et reset timer)
+  useEffect(() => {
+    if (!showInactivityWarning) return;
+    let remaining = 60;
+    setSecondsLeft(remaining);
+    const id = window.setInterval(() => {
+      remaining -= 1;
+      setSecondsLeft(remaining);
+      if (remaining <= 0) {
+        window.clearInterval(id);
+        logoutRef.current();
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [showInactivityWarning]);
+
   const handleStayConnected = () => {
     setShowInactivityWarning(false);
     resetTimer();
@@ -97,6 +114,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout
       {/* Avertissement d'inactivité */}
       <InactivityWarning
         isVisible={showInactivityWarning}
+        secondsLeft={secondsLeft}
         onStayConnected={handleStayConnected}
         onLogout={onLogout}
       />

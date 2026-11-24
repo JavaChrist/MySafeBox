@@ -54,6 +54,10 @@ export class APIService {
     return await this.storageService.renameItem(path, newName, isDirectory);
   }
 
+  async moveItem(path: string, destinationFolder: string, isDirectory: boolean): Promise<void> {
+    return await this.storageService.moveItem(path, destinationFolder, isDirectory);
+  }
+
   // Obtenir les métadonnées d'un fichier
   async getFileMetadata(path: string): Promise<any> {
     return await this.storageService.getFileMetadata(path);

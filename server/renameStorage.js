@@ -1,3 +1,5 @@
+import { isOwnDownloadUrl, isSafePath } from './storageGuards.js';
+
 const MAX_BYTES = 100 * 1024 * 1024;
 
 export async function renameStorageObject({ token, bucket, from, to, downloadUrl, contentType, customMetadata }) {
@@ -62,36 +64,6 @@ export async function renameStorageObject({ token, bucket, from, to, downloadUrl
   }
 
   return { status: 200, body: { done: true } };
-}
-
-function isSafePath(path) {
-  return typeof path === 'string'
-    && path.startsWith('users/')
-    && !path.includes('..')
-    && !path.includes('\\')
-    && !path.endsWith('/');
-}
-
-function isOwnDownloadUrl(value, bucket, objectPath) {
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
-  if (url.protocol !== 'https:' || url.hostname !== 'firebasestorage.googleapis.com') {
-    return false;
-  }
-  if (url.searchParams.get('alt') !== 'media' || !url.searchParams.get('token')) {
-    return false;
-  }
-  let pathname;
-  try {
-    pathname = decodeURIComponent(url.pathname);
-  } catch {
-    return false;
-  }
-  return pathname === `/v0/b/${bucket}/o/${objectPath}`;
 }
 
 function sanitizeContentType(value) {

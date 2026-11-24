@@ -3,6 +3,7 @@ import type { Plugin } from 'vite'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { renameStorageObject } from './server/renameStorage.js'
+import { readStorageText } from './server/readStorageText.js'
 
 function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
@@ -20,25 +21,29 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   })
 }
 
-function storageRenamePlugin(): Plugin {
+function storageApiPlugin(
+  route: string,
+  handle: (body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>,
+  fallback: string
+): Plugin {
   return {
-    name: 'storage-rename',
+    name: `storage-api-${route}`,
     configureServer(server) {
-      server.middlewares.use('/api/rename-storage', async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+      server.middlewares.use(route, async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
         if (req.method !== 'POST') {
           next()
           return
         }
         try {
           const body = await readJson(req)
-          const result = await renameStorageObject(body)
+          const result = await handle(body)
           res.statusCode = result.status
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify(result.body))
         } catch {
           res.statusCode = 500
           res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify({ error: 'Impossible de renommer cet élément' }))
+          res.end(JSON.stringify({ error: fallback }))
         }
       })
     }
@@ -47,7 +52,11 @@ function storageRenamePlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), storageRenamePlugin()],
+  plugins: [
+    react(),
+    storageApiPlugin('/api/rename-storage', renameStorageObject, 'Impossible de renommer cet élément'),
+    storageApiPlugin('/api/preview-text', readStorageText, 'Impossible d\'afficher ce fichier')
+  ],
   server: {
     host: '127.0.0.1',
     port: 5173,

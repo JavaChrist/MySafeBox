@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft, RefreshCw, Upload, FolderPlus, Download, Trash2,
   Search, Grid, List, ChevronRight, Home, CheckSquare, Square,
-  SortAsc, SortDesc, Eye, Pencil
+  SortAsc, SortDesc, Eye, Pencil, FolderInput
 } from 'lucide-react';
 import type { AuthUser } from '../services/firebase-auth';
 import { APIService } from '../services/api';
@@ -35,6 +35,12 @@ interface FileExplorerState {
   renameValue: string;
   renameError: string | null;
   isRenaming: boolean;
+  moveTarget: FirebaseFileItem | null;
+  movePath: string;
+  moveFolders: FirebaseFileItem[];
+  moveError: string | null;
+  isMoving: boolean;
+  moveLoading: boolean;
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) => {
@@ -57,7 +63,13 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
     renameTarget: null,
     renameValue: '',
     renameError: null,
-    isRenaming: false
+    isRenaming: false,
+    moveTarget: null,
+    movePath: '',
+    moveFolders: [],
+    moveError: null,
+    isMoving: false,
+    moveLoading: false
   });
 
   // Ref pour éviter les dépendances cycliques
@@ -126,18 +138,24 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
       };
 
       if (isAndroid && typeof win.showOpenFilePicker === 'function') {
-        // Utilise le File System Access API (Android/Chrome) pour ouvrir "Documents/Fichiers"
-        const handles = await win.showOpenFilePicker({
-          multiple: true,
-          types: [
-            {
-              description: 'Tous les fichiers',
-              accept: { '*/*': ['.'] }
-            }
-          ]
-        });
+        let handles: Array<{ getFile: () => Promise<File> }>;
+        try {
+          handles = await win.showOpenFilePicker({
+            multiple: true,
+            types: [
+              {
+                description: 'Tous les fichiers',
+                accept: { '*/*': ['.'] }
+              }
+            ]
+          });
+        } catch (err) {
+          console.warn('Sélecteur fichiers natif indisponible, fallback input:', err);
+          document.getElementById('file-upload')?.click();
+          return;
+        }
 
-        setState(prev => ({ ...prev, isLoading: true, uploadProgress: 0 }));
+        setState(prev => ({ ...prev, isLoading: true, uploadProgress: 0, error: null }));
         for (let i = 0; i < handles.length; i++) {
           const file = await handles[i].getFile();
           await apiService.uploadFile(file, currentPathRef.current, (p) => {
@@ -149,8 +167,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
         setState(prev => ({ ...prev, isLoading: false, uploadProgress: 0 }));
         return;
       }
-    } catch (err) {
-      console.warn('Sélecteur fichiers natif indisponible, fallback input:', err);
+    } catch (error) {
+      console.error('Upload error:', error);
+      setState(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : 'Impossible d\'envoyer ce fichier',
+        isLoading: false,
+        uploadProgress: 0
+      }));
+      return;
     }
 
     // Fallback: input file caché
@@ -243,6 +268,90 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
     }
   };
 
+  const closeMove = () => {
+    setState(prev => ({
+      ...prev,
+      moveTarget: null,
+      moveFolders: [],
+      moveError: null,
+      isMoving: false,
+      moveLoading: false
+    }));
+  };
+
+  useEffect(() => {
+    if (!state.moveTarget) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      closeMove();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [state.moveTarget]);
+
+  const loadMoveFolders = async (path: string, target: FirebaseFileItem) => {
+    setState(prev => ({ ...prev, moveLoading: true, movePath: path, moveError: null }));
+    try {
+      const items = await apiService.listFiles(path);
+      setState(prev => ({
+        ...prev,
+        moveLoading: false,
+        moveFolders: items.filter((item) => item.isdir && item.path !== target.path)
+      }));
+    } catch (error) {
+      console.error('Move list error:', error);
+      setState(prev => ({
+        ...prev,
+        moveLoading: false,
+        moveError: 'Impossible de lister les dossiers'
+      }));
+    }
+  };
+
+  const openMove = (file: FirebaseFileItem) => {
+    setState(prev => ({
+      ...prev,
+      moveTarget: file,
+      movePath: '',
+      moveFolders: [],
+      moveError: null,
+      isMoving: false
+    }));
+    void loadMoveFolders('', file);
+  };
+
+  const handleMove = async () => {
+    const target = state.moveTarget;
+    if (!target || state.isMoving) return;
+    const slash = target.path.lastIndexOf('/');
+    const currentFolder = slash === -1 ? '' : target.path.slice(0, slash);
+    if (state.movePath === currentFolder) {
+      setState(prev => ({ ...prev, moveError: 'Cet élément est déjà dans ce dossier' }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, isMoving: true, moveError: null }));
+    try {
+      await apiService.moveItem(target.path, state.movePath, Boolean(target.isdir));
+      setState(prev => ({
+        ...prev,
+        isMoving: false,
+        moveTarget: null,
+        moveFolders: [],
+        previewFile: prev.previewFile?.path === target.path ? null : prev.previewFile
+      }));
+      await reloadCurrentFolder();
+    } catch (error) {
+      console.error('Move error:', error);
+      setState(prev => ({
+        ...prev,
+        isMoving: false,
+        moveError: error instanceof Error ? error.message : 'Impossible de déplacer cet élément'
+      }));
+    }
+  };
+
   // Sélectionner tout / Désélectionner tout
   const toggleSelectAll = () => {
     setState(prev => ({
@@ -295,7 +404,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
     if (!files || files.length === 0) return;
 
     try {
-      setState(prev => ({ ...prev, isLoading: true, uploadProgress: 0 }));
+      setState(prev => ({ ...prev, isLoading: true, uploadProgress: 0, error: null }));
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -575,7 +684,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                     state.sortOrder === 'asc' ? <SortAsc className="w-3 h-3" /> : <SortDesc className="w-3 h-3" />
                   )}
                 </div>
-                <div className="w-36">Actions</div>
+                <div className="w-44">Actions</div>
               </div>
             )}
 
@@ -673,7 +782,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                         {formatDate(file.lastModified)}
                       </div>
 
-                      <div className="w-36 flex gap-1">
+                      <div className="w-44 flex gap-1">
                         {!file.isdir && (
                           <button
                             className="p-1 text-gray-400 hover:text-white rounded"
@@ -695,6 +804,16 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                           }}
                         >
                           <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          className="p-1 text-gray-400 hover:text-white rounded"
+                          title="Déplacer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openMove(file);
+                          }}
+                        >
+                          <FolderInput className="w-4 h-4" />
                         </button>
                         {!file.isdir && (
                           <button
@@ -757,6 +876,16 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
               >
                 <Pencil className="w-4 h-4 mr-2" />
                 Renommer
+              </button>
+            )}
+            {singleSelection && (
+              <button
+                type="button"
+                className="btn-secondary inline-flex items-center"
+                onClick={() => openMove(singleSelection)}
+              >
+                <FolderInput className="w-4 h-4 mr-2" />
+                Déplacer
               </button>
             )}
             <button
@@ -935,6 +1064,80 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                 disabled={state.isRenaming || !state.renameValue.trim() || state.renameValue.trim() === state.renameTarget.name}
               >
                 {state.isRenaming ? 'Renommage...' : 'Renommer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {state.moveTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="move-title"
+            className="card max-w-md w-full"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && !state.isMoving) closeMove();
+            }}
+          >
+            <h3 id="move-title" className="text-lg font-semibold text-white mb-2">
+              Déplacer
+            </h3>
+            <p className="text-sm text-gray-400 mb-1 truncate">{state.moveTarget.name}</p>
+            <p className="text-sm text-gray-300 mb-4">
+              Destination : {state.movePath || 'Racine'}
+            </p>
+            {state.moveError && (
+              <p className="text-sm text-red-400 mb-3">{state.moveError}</p>
+            )}
+            <div className="max-h-64 overflow-y-auto border border-gray-700 rounded-md mb-4">
+              {state.movePath && (
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 text-gray-300 hover:bg-gray-700"
+                  onClick={() => {
+                    const slash = state.movePath.lastIndexOf('/');
+                    void loadMoveFolders(slash === -1 ? '' : state.movePath.slice(0, slash), state.moveTarget!);
+                  }}
+                  disabled={state.isMoving || state.moveLoading}
+                >
+                  Dossier parent
+                </button>
+              )}
+              {state.moveLoading ? (
+                <p className="px-3 py-4 text-sm text-gray-400">Chargement...</p>
+              ) : state.moveFolders.length === 0 ? (
+                <p className="px-3 py-4 text-sm text-gray-400">Aucun sous-dossier</p>
+              ) : (
+                state.moveFolders.map((folder) => (
+                  <button
+                    key={folder.path}
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-white hover:bg-gray-700 truncate"
+                    onClick={() => void loadMoveFolders(folder.path, state.moveTarget!)}
+                    disabled={state.isMoving}
+                  >
+                    {folder.name}
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={closeMove}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="btn-primary disabled:opacity-50"
+                onClick={handleMove}
+                disabled={state.isMoving || state.moveLoading}
+              >
+                {state.isMoving ? 'Déplacement...' : 'Déplacer ici'}
               </button>
             </div>
           </div>

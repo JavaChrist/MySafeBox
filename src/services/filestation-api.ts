@@ -1,11 +1,11 @@
 import {
   ref,
   uploadBytes,
+  uploadBytesResumable,
   getDownloadURL,
   deleteObject,
   listAll,
   getMetadata,
-  getBlob,
   updateMetadata,
   type StorageReference,
   type UploadMetadata
@@ -157,21 +157,34 @@ export class FirebaseStorageService {
         }
       };
 
-      // Upload avec suivi de progression si callback fourni
-      if (onProgress) {
-        // Pour l'instant, simple upload direct
-        // TODO: Implémenter uploadBytesResumable pour le suivi de progression
-        await uploadBytes(fileRef, file, metadata);
-        onProgress(100);
-      } else {
-        await uploadBytes(fileRef, file, metadata);
-      }
+      await new Promise<void>((resolve, reject) => {
+        const task = uploadBytesResumable(fileRef, file, metadata);
+        task.on('state_changed', (snapshot) => {
+          if (!onProgress || snapshot.totalBytes === 0) return;
+          onProgress((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+        }, reject, () => resolve());
+      });
 
       console.log('✅ Upload réussi:', file.name);
       return true;
     } catch (error) {
       console.error('Erreur upload:', error);
-      return false;
+      if (error instanceof Error && error.message.startsWith('Fichier trop volumineux')) {
+        throw error;
+      }
+      const code = typeof error === 'object' && error && 'code' in error
+        ? String((error as { code: unknown }).code)
+        : '';
+      if (code === 'storage/unauthorized') {
+        throw new Error('Envoi refusé. Vérifiez que vous êtes bien connecté.');
+      }
+      if (code === 'storage/canceled') {
+        throw new Error('Envoi annulé.');
+      }
+      if (code === 'storage/quota-exceeded') {
+        throw new Error('L’espace de stockage est plein.');
+      }
+      throw new Error('Impossible d\'envoyer ce fichier');
     }
   }
 
@@ -395,10 +408,34 @@ export class FirebaseStorageService {
       if ((metadata.size || 0) > maxBytes) {
         throw new Error('Ce fichier est trop volumineux pour être affiché ici.');
       }
-      const blob = await getBlob(fileRef);
-      return await blob.text();
+      const bucket = storage.app.options.storageBucket;
+      if (!bucket) {
+        throw new Error('Impossible d\'afficher ce fichier');
+      }
+      const downloadUrl = await getDownloadURL(fileRef);
+      const response = await fetch('/api/preview-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bucket,
+          path: this.getUserPath(path),
+          downloadUrl
+        })
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = payload && typeof payload.error === 'string'
+          ? payload.error
+          : 'Impossible d\'afficher ce fichier';
+        throw new Error(message);
+      }
+      return payload && typeof payload.text === 'string' ? payload.text : '';
     } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Ce fichier est trop volumineux')) {
+      if (error instanceof Error && (
+        error.message.startsWith('Ce fichier est trop volumineux')
+        || error.message.startsWith('Impossible d\'afficher')
+        || error.message.startsWith('Ce fichier ne peut pas')
+      )) {
         throw error;
       }
       console.error('Erreur de lecture:', error);
@@ -422,20 +459,56 @@ export class FirebaseStorageService {
       throw new Error('Un élément porte déjà ce nom');
     }
 
+    await this.relocate(cleanPath, newPath, isDirectory, isDirectory ? undefined : safeName, 'renommer');
+  }
+
+  async moveItem(path: string, destinationFolder: string, isDirectory: boolean): Promise<void> {
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const slash = cleanPath.lastIndexOf('/');
+    const name = slash === -1 ? cleanPath : cleanPath.slice(slash + 1);
+    const destination = destinationFolder.replace(/^\/+|\/+$/g, '');
+
+    if (!cleanPath || !name) {
+      throw new Error('Chemin invalide');
+    }
+    if (isDirectory && (destination === cleanPath || destination.startsWith(`${cleanPath}/`))) {
+      throw new Error('Un dossier ne peut pas être déplacé dans lui-même');
+    }
+
+    const newPath = destination ? `${destination}/${name}` : name;
+    if (newPath === cleanPath) {
+      throw new Error('Cet élément est déjà dans ce dossier');
+    }
+    if (await this.entryExists(newPath)) {
+      throw new Error('Un élément porte déjà ce nom');
+    }
+
+    await this.relocate(cleanPath, newPath, isDirectory, isDirectory ? undefined : name, 'déplacer');
+  }
+
+  private async relocate(
+    cleanPath: string,
+    newPath: string,
+    isDirectory: boolean,
+    originalName: string | undefined,
+    action: 'renommer' | 'déplacer'
+  ): Promise<void> {
     if (!isDirectory) {
       const source = this.getUserPath(cleanPath);
       const destination = this.getUserPath(newPath);
       try {
-        await this.copyObject(source, destination, safeName);
+        await this.copyObject(source, destination, originalName);
       } catch (error) {
         console.error('Erreur de copie:', error);
-        throw error instanceof Error ? error : new Error('Impossible de renommer cet élément');
+        throw error instanceof Error ? error : new Error(`Impossible de ${action} cet élément`);
       }
       try {
         await deleteObject(ref(storage, source));
       } catch (error) {
-        console.error('Erreur de suppression après renommage:', error);
-        throw new Error('Le nouveau nom est en place, mais l’ancien fichier n’a pas pu être retiré.');
+        console.error('Erreur de suppression après déplacement:', error);
+        throw new Error(action === 'renommer'
+          ? 'Le nouveau nom est en place, mais l’ancien fichier n’a pas pu être retiré.'
+          : 'La copie est en place, mais l’original n’a pas pu être retiré.');
       }
       return;
     }
@@ -467,14 +540,16 @@ export class FirebaseStorageService {
       if (error instanceof Error && error.message === 'Chemin de fichier inattendu') {
         throw error;
       }
-      throw new Error('Impossible de renommer cet élément');
+      throw new Error(`Impossible de ${action} cet élément`);
     }
 
     try {
       await Promise.all(refs.map((item) => deleteObject(item)));
     } catch (error) {
-      console.error('Erreur de suppression après renommage:', error);
-      throw new Error('Le nouveau nom est en place, mais l’ancien contenu n’a pas pu être entièrement retiré.');
+      console.error('Erreur de suppression après déplacement:', error);
+      throw new Error(action === 'renommer'
+        ? 'Le nouveau nom est en place, mais l’ancien contenu n’a pas pu être entièrement retiré.'
+        : 'La copie est en place, mais l’original n’a pas pu être entièrement retiré.');
     }
   }
 

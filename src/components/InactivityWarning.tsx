@@ -3,12 +3,14 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 
 interface InactivityWarningProps {
   isVisible: boolean;
+  secondsLeft: number;
   onStayConnected: () => void;
   onLogout: () => void;
 }
 
 export const InactivityWarning: React.FC<InactivityWarningProps> = ({
   isVisible,
+  secondsLeft,
   onStayConnected,
   onLogout
 }) => {
@@ -25,7 +27,7 @@ export const InactivityWarning: React.FC<InactivityWarningProps> = ({
         </div>
 
         <p className="text-gray-300 mb-6">
-          Votre session va expirer dans quelques instants due à l'inactivité.
+          Votre session se fermera dans {Math.max(secondsLeft, 0)} seconde{secondsLeft > 1 ? 's' : ''} à cause de l'inactivité.
           Voulez-vous rester connecté ?
         </p>
 
