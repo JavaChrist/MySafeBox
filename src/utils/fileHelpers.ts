@@ -118,7 +118,7 @@ export const sortFiles = (files: any[], sortBy: 'name' | 'size' | 'date' | 'type
   return sorted;
 };
 
-export type PreviewKind = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'unsupported';
+export type PreviewKind = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'docx' | 'sheet' | 'unsupported';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
 const VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogv', 'mov'];
@@ -135,7 +135,14 @@ export const getPreviewKind = (filename: string): PreviewKind => {
   if (VIDEO_EXTENSIONS.includes(ext)) return 'video';
   if (AUDIO_EXTENSIONS.includes(ext)) return 'audio';
   if (TEXT_EXTENSIONS.includes(ext)) return 'text';
+  if (ext === 'docx') return 'docx';
+  if (ext === 'xlsx') return 'sheet';
   return 'unsupported';
+};
+
+export const isLegacyOfficeFile = (filename: string): boolean => {
+  const ext = filename.toLowerCase().split('.').pop() || '';
+  return ['doc', 'xls', 'ppt'].includes(ext);
 };
 
 export const validateEntryName = (name: string): string => {

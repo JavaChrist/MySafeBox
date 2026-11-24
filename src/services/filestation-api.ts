@@ -15,6 +15,11 @@ import type { FileItem } from '../types';
 import { CONFIG } from '../config/environment';
 import { validateEntryName } from '../utils/fileHelpers';
 
+export interface SheetPreview {
+  sheets: Array<{ name: string; rows: string[][] }>;
+  truncated: boolean;
+}
+
 export interface FirebaseFileItem extends FileItem {
   downloadUrl?: string;
   fullPath: string;
@@ -401,46 +406,84 @@ export class FirebaseStorageService {
     }
   }
 
-  async getTextPreview(path: string, maxBytes: number = 2 * 1024 * 1024): Promise<string> {
+  async getTextPreview(path: string): Promise<string> {
+    const response = await this.requestPreview(
+      path,
+      '/api/preview-text',
+      2 * 1024 * 1024,
+      'Ce fichier est trop volumineux pour être affiché ici.'
+    );
+    const payload = await response.json().catch(() => null);
+    return payload && typeof payload.text === 'string' ? payload.text : '';
+  }
+
+  async getDocxPreview(path: string): Promise<ArrayBuffer> {
+    const response = await this.requestPreview(
+      path,
+      '/api/preview-docx',
+      4 * 1024 * 1024,
+      'Ce document est trop volumineux pour l’aperçu (4 Mo maximum).'
+    );
+    return await response.arrayBuffer();
+  }
+
+  async getSheetPreview(path: string): Promise<SheetPreview> {
+    const response = await this.requestPreview(
+      path,
+      '/api/preview-sheet',
+      20 * 1024 * 1024,
+      'Ce classeur est trop volumineux pour l’aperçu (20 Mo maximum).'
+    );
+    const payload = await response.json().catch(() => null);
+    if (!payload || !Array.isArray(payload.sheets)) {
+      throw new Error('Impossible d\'afficher ce classeur');
+    }
+    return { sheets: payload.sheets, truncated: Boolean(payload.truncated) };
+  }
+
+  // Firebase interdit au navigateur de lire le contenu : le serveur le lit pour nous.
+  private async requestPreview(
+    path: string,
+    endpoint: string,
+    maxBytes: number,
+    tooLargeMessage: string
+  ): Promise<Response> {
+    const fileRef = ref(storage, this.getUserPath(path));
+    const bucket = storage.app.options.storageBucket;
+    let downloadUrl: string;
     try {
-      const fileRef = ref(storage, this.getUserPath(path));
       const metadata = await getMetadata(fileRef);
       if ((metadata.size || 0) > maxBytes) {
-        throw new Error('Ce fichier est trop volumineux pour être affiché ici.');
+        throw new Error(tooLargeMessage);
       }
-      const bucket = storage.app.options.storageBucket;
-      if (!bucket) {
-        throw new Error('Impossible d\'afficher ce fichier');
-      }
-      const downloadUrl = await getDownloadURL(fileRef);
-      const response = await fetch('/api/preview-text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bucket,
-          path: this.getUserPath(path),
-          downloadUrl
-        })
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message = payload && typeof payload.error === 'string'
-          ? payload.error
-          : 'Impossible d\'afficher ce fichier';
-        throw new Error(message);
-      }
-      return payload && typeof payload.text === 'string' ? payload.text : '';
+      downloadUrl = await getDownloadURL(fileRef);
     } catch (error) {
-      if (error instanceof Error && (
-        error.message.startsWith('Ce fichier est trop volumineux')
-        || error.message.startsWith('Impossible d\'afficher')
-        || error.message.startsWith('Ce fichier ne peut pas')
-      )) {
-        throw error;
-      }
+      if (error instanceof Error && error.message === tooLargeMessage) throw error;
       console.error('Erreur de lecture:', error);
       throw new Error('Impossible d\'afficher ce fichier');
     }
+    if (!bucket) {
+      throw new Error('Impossible d\'afficher ce fichier');
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bucket, path: this.getUserPath(path), downloadUrl })
+      });
+    } catch (error) {
+      console.error('Erreur de lecture:', error);
+      throw new Error('Impossible d\'afficher ce fichier');
+    }
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload && typeof payload.error === 'string'
+        ? payload.error
+        : 'Impossible d\'afficher ce fichier');
+    }
+    return response;
   }
 
   async renameItem(path: string, newName: string, isDirectory: boolean): Promise<void> {

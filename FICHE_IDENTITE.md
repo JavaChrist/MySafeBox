@@ -12,7 +12,7 @@ Garder ses documents et autres fichiers au même endroit, les retrouver et les c
 ## Fonctionnalités principales
 - Créer un compte, se connecter, rester connecté sur son appareil si on le souhaite, et demander un nouveau mot de passe par e-mail.
 - Envoyer ses fichiers dans un espace réservé à son compte, dans la limite de 100 Mo par fichier, avec une progression réelle de l’envoi.
-- Afficher un fichier directement dans l’application, sans le télécharger : images, PDF, vidéos, sons et textes.
+- Afficher un fichier directement dans l’application, sans le télécharger : images, PDF, vidéos, sons, textes, documents Word et classeurs Excel.
 - Renommer un fichier ou un dossier, et le déplacer vers un autre dossier.
 - Créer des dossiers, chercher un nom dans le dossier affiché, télécharger un fichier, et supprimer des fichiers ou des dossiers après confirmation.
 - Consulter ses fichiers en grille ou en liste, sur un grand écran comme sur un téléphone, et ajouter la page à l’écran d’accueil.

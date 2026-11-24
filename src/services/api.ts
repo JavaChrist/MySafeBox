@@ -1,4 +1,4 @@
-import { FirebaseStorageService, type FirebaseFileItem } from './filestation-api';
+import { FirebaseStorageService, type FirebaseFileItem, type SheetPreview } from './filestation-api';
 import type { AuthUser } from './firebase-auth';
 
 export class APIService {
@@ -47,6 +47,16 @@ export class APIService {
   // Lire un fichier texte pour l'afficher dans l'application
   async getTextPreview(path: string): Promise<string> {
     return await this.storageService.getTextPreview(path);
+  }
+
+  // Lire un document Word pour l'afficher dans l'application
+  async getDocxPreview(path: string): Promise<ArrayBuffer> {
+    return await this.storageService.getDocxPreview(path);
+  }
+
+  // Lire un classeur Excel pour l'afficher dans l'application
+  async getSheetPreview(path: string): Promise<SheetPreview> {
+    return await this.storageService.getSheetPreview(path);
   }
 
   // Renommer un fichier ou un dossier

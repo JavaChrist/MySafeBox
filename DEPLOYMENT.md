@@ -61,7 +61,7 @@ VITE_FIREBASE_APP_ID=your_app_id
    - Pour chaque environnement : Production, Preview, Development
 
 4. **Fonctions serveur**
-   - Le dossier `api/` contient deux fonctions Vercel : `rename-storage` (renommage et déplacement) et `preview-text` (aperçu des fichiers texte).
+   - Le dossier `api/` contient quatre fonctions Vercel : `rename-storage` (renommage et déplacement), `preview-text` (aperçu des fichiers texte), `preview-docx` (aperçu Word) et `preview-sheet` (aperçu Excel).
    - Elles sont nécessaires, car Firebase empêche le navigateur de lire directement le contenu d’un fichier stocké.
    - `vercel.json` renvoie toutes les adresses vers `index.html`, sauf celles qui commencent par `/api/`.
    - Après un déploiement, vérifiez qu’un renommage et l’aperçu d’un fichier texte fonctionnent sur le site en ligne.

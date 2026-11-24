@@ -15,7 +15,7 @@ Ces parcours sont branchés dans les écrans et appellent Firebase.
 - **Inactivité.** Au bout de 14 minutes sans clic, frappe, défilement ou toucher, une fenêtre affiche un compte à rebours de 60 secondes. Sans réponse, la session se ferme. « Rester connecté » relance le délai.
 - **Espace personnel.** Les fichiers sont enregistrés dans Firebase Storage, dans un dossier propre à chaque compte (`users/{identifiant}/`). Les règles de `storage.rules`, publiées sur le projet Firebase, n’autorisent chaque compte qu’à lire et écrire dans son propre dossier.
 - **Consultation.** Liste du dossier courant, ouverture des sous-dossiers, fil d’Ariane, retour au dossier précédent, retour à la racine et actualisation.
-- **Aperçu.** Un clic sur un fichier l’ouvre dans l’application, sans téléchargement : images, PDF, vidéos, sons et fichiers texte (texte brut, Markdown, JSON, CSV, code…). Les fichiers texte de plus de 2 Mo et les documents Office ne sont pas affichés ; la fenêtre propose alors de les télécharger.
+- **Aperçu.** Un clic sur un fichier l’ouvre dans l’application, sans téléchargement : images, PDF, vidéos, sons, fichiers texte (texte brut, Markdown, JSON, CSV, code…), documents Word `.docx` et classeurs Excel `.xlsx`. Un document Word garde sa mise en page ; un classeur s’affiche feuille par feuille, sous forme de tableau, sans les feuilles masquées. Limites : 2 Mo pour un texte, 4 Mo pour un document Word, 20 Mo pour un classeur dont seules les 500 premières lignes et 50 premières colonnes de chaque feuille sont montrées. Les anciens formats `.doc`, `.xls` et `.ppt` ne sont pas affichés ; la fenêtre propose alors de les télécharger.
 - **Renommage.** Un fichier ou un dossier, avec tout son contenu, prend un nouveau nom au même endroit. Le nom est refusé s’il est vide, s’il contient une barre oblique ou s’il est déjà pris.
 - **Déplacement.** Un fichier ou un dossier part vers un autre dossier choisi dans une fenêtre de navigation. Un dossier ne peut pas être déplacé dans lui-même.
 - **Recherche.** Filtre les noms du dossier ouvert. Elle ne parcourt pas les autres dossiers.
@@ -46,16 +46,20 @@ Il en reste des traces : le nom du fichier `filestation-api.ts`, un type de comp
 
 ## Fonctionnement côté serveur
 
-Firebase empêche le navigateur de lire directement le contenu d’un fichier déjà stocké. Deux opérations passent donc par un petit serveur :
+Firebase empêche le navigateur de lire directement le contenu d’un fichier déjà stocké. Plusieurs opérations passent donc par un petit serveur :
 
 | Adresse | Rôle | En local | En ligne |
 | --- | --- | --- | --- |
 | `/api/rename-storage` | Recopie un fichier sous un nouveau chemin (renommage et déplacement) | Serveur Vite (`vite.config.ts`) | Fonction Vercel `api/rename-storage.js` |
 | `/api/preview-text` | Lit un fichier texte pour l’aperçu | Serveur Vite (`vite.config.ts`) | Fonction Vercel `api/preview-text.js` |
+| `/api/preview-docx` | Renvoie un document Word, affiché ensuite dans le navigateur par `docx-preview` | Serveur Vite (`vite.config.ts`) | Fonction Vercel `api/preview-docx.js` |
+| `/api/preview-sheet` | Lit un classeur Excel avec `exceljs` et renvoie le contenu des feuilles | Serveur Vite (`vite.config.ts`) | Fonction Vercel `api/preview-sheet.js` |
+
+Aucun service extérieur n’intervient dans l’aperçu des documents Office. La limite de 4 Mo pour Word vient de la taille maximale d’une réponse de fonction Vercel.
 
 La logique commune est dans le dossier `server/`. Le serveur n’accepte que des chemins sous `users/` et des adresses de téléchargement Firebase correspondant au fichier demandé. L’écriture se fait avec la session de la personne connectée, donc les règles Storage s’appliquent.
 
-Un hébergement purement statique (sans fonctions) affiche les fichiers, mais le renommage, le déplacement et l’aperçu des fichiers texte y échouent.
+Un hébergement purement statique (sans fonctions) affiche les images, PDF, vidéos et sons, mais le renommage, le déplacement et l’aperçu des fichiers texte, Word et Excel y échouent.
 
 ## Stack
 
