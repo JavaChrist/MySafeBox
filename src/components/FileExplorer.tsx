@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft, RefreshCw, Upload, FolderPlus, Download, Trash2,
   Search, Grid, List, ChevronRight, Home, CheckSquare, Square,
-  SortAsc, SortDesc
+  SortAsc, SortDesc, Eye, Pencil
 } from 'lucide-react';
 import type { AuthUser } from '../services/firebase-auth';
 import { APIService } from '../services/api';
 import type { FirebaseFileItem } from '../services/filestation-api';
-import { getFileIcon, formatFileSize, formatDate, sortFiles } from '../utils/fileHelpers';
+import { getFileIcon, formatFileSize, formatDate, sortFiles, validateEntryName } from '../utils/fileHelpers';
+import { FilePreviewModal } from './FilePreviewModal';
 
 interface FileExplorerProps {
   apiService: APIService;
@@ -29,6 +30,11 @@ interface FileExplorerState {
   showDeleteModal: boolean;
   newFolderName: string;
   uploadProgress: number;
+  previewFile: FirebaseFileItem | null;
+  renameTarget: FirebaseFileItem | null;
+  renameValue: string;
+  renameError: string | null;
+  isRenaming: boolean;
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) => {
@@ -46,7 +52,12 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
     showUploadModal: false,
     showDeleteModal: false,
     newFolderName: '',
-    uploadProgress: 0
+    uploadProgress: 0,
+    previewFile: null,
+    renameTarget: null,
+    renameValue: '',
+    renameError: null,
+    isRenaming: false
   });
 
   // Ref pour éviter les dépendances cycliques
@@ -161,18 +172,74 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
     }));
   };
 
-  // Navigation vers un dossier (double-clic ou icône spéciale)
+  const openPreview = (file: FirebaseFileItem) => {
+    if (file.isdir) return;
+    setState(prev => ({ ...prev, previewFile: file }));
+  };
+
+  const openRename = (file: FirebaseFileItem) => {
+    setState(prev => ({
+      ...prev,
+      renameTarget: file,
+      renameValue: file.name,
+      renameError: null
+    }));
+  };
+
+  // Dossier : ouverture. Fichier : aperçu. Ctrl/Cmd+clic : sélection.
   const handleItemClick = (file: FirebaseFileItem, event: React.MouseEvent) => {
-    if (file.isdir) {
-      // Pour les dossiers : Ctrl+clic = sélection, clic simple = navigation
-      if (event.ctrlKey || event.metaKey) {
-        toggleFileSelection(file.name);
-      } else {
-        navigateToFolder(file.name);
-      }
-    } else {
-      // Pour les fichiers : toujours sélection
+    if (event.ctrlKey || event.metaKey) {
       toggleFileSelection(file.name);
+      return;
+    }
+    if (file.isdir) {
+      navigateToFolder(file.name);
+      return;
+    }
+    openPreview(file);
+  };
+
+  const handleRename = async () => {
+    if (!state.renameTarget) return;
+
+    let safeName = '';
+    try {
+      safeName = validateEntryName(state.renameValue);
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        renameError: error instanceof Error ? error.message : 'Nom invalide'
+      }));
+      return;
+    }
+
+    if (safeName === state.renameTarget.name) {
+      setState(prev => ({ ...prev, renameTarget: null, renameValue: '', renameError: null }));
+      return;
+    }
+
+    const target = state.renameTarget;
+    setState(prev => ({ ...prev, isRenaming: true, renameError: null }));
+
+    try {
+      await apiService.renameItem(target.path, safeName, Boolean(target.isdir));
+      setState(prev => ({
+        ...prev,
+        isRenaming: false,
+        renameTarget: null,
+        renameValue: '',
+        previewFile: prev.previewFile?.path === target.path ? null : prev.previewFile
+      }));
+      await reloadCurrentFolder();
+    } catch (error) {
+      console.error('Rename error:', error);
+      const message = error instanceof Error ? error.message : 'Impossible de renommer';
+      setState(prev => ({
+        ...prev,
+        isRenaming: false,
+        renameError: prev.renameTarget ? message : null,
+        error: prev.renameTarget ? prev.error : message
+      }));
     }
   };
 
@@ -270,7 +337,13 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
   // Supprimer les fichiers sélectionnés
   const handleDeleteSelected = async () => {
     try {
-      setState(prev => ({ ...prev, isLoading: true, showDeleteModal: false }));
+      setState(prev => ({
+        ...prev,
+        isLoading: true,
+        showDeleteModal: false,
+        previewFile: null,
+        renameTarget: null
+      }));
 
       const pathsToDelete = state.selectedFiles.map(filename => {
         return currentPathRef.current === '' ? filename : `${currentPathRef.current}/${filename}`;
@@ -335,6 +408,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
 
   // Breadcrumb
   const breadcrumbParts = state.currentPath === '' ? [] : state.currentPath.split('/').filter(p => p);
+  const selectedItems = state.files.filter((file) => state.selectedFiles.includes(file.name));
+  const singleSelection = selectedItems.length === 1 ? selectedItems[0] : null;
 
   return (
     <div className="h-full flex flex-col bg-gray-900">
@@ -500,7 +575,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                     state.sortOrder === 'asc' ? <SortAsc className="w-3 h-3" /> : <SortDesc className="w-3 h-3" />
                   )}
                 </div>
-                <div className="w-20">Actions</div>
+                <div className="w-36">Actions</div>
               </div>
             )}
 
@@ -526,7 +601,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                     >
                       <div className="text-center">
                         <IconComponent className={`w-12 h-12 mx-auto mb-2 ${color}`} />
-                        <div className="text-sm text-white truncate" title={file.name}>
+                        <div className="text-sm text-white truncate" title={file.isdir ? file.name : `Afficher ${file.name}`}>
                           {file.name}
                         </div>
                         {!file.isdir && (
@@ -598,29 +673,55 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                         {formatDate(file.lastModified)}
                       </div>
 
-                      <div className="w-20 flex gap-1">
+                      <div className="w-36 flex gap-1">
                         {!file.isdir && (
-                          <>
-                            <button
-                              className="p-1 text-gray-400 hover:text-white rounded"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // TODO: Download action
-                              }}
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-                            <button
-                              className="p-1 text-gray-400 hover:text-red-400 rounded"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // TODO: Delete action
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
+                          <button
+                            className="p-1 text-gray-400 hover:text-white rounded"
+                            title="Aperçu"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPreview(file);
+                            }}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
                         )}
+                        <button
+                          className="p-1 text-gray-400 hover:text-white rounded"
+                          title="Renommer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRename(file);
+                          }}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        {!file.isdir && (
+                          <button
+                            className="p-1 text-gray-400 hover:text-white rounded"
+                            title="Télécharger"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownload(file);
+                            }}
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          className="p-1 text-gray-400 hover:text-red-400 rounded"
+                          title="Supprimer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setState(prev => ({
+                              ...prev,
+                              selectedFiles: [file.name],
+                              showDeleteModal: true
+                            }));
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -633,25 +734,45 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
 
       {/* Footer avec actions sélection */}
       {state.selectedFiles.length > 0 && (
-        <div className="bg-gray-800 border-t border-gray-700 p-4 flex items-center gap-4">
+        <div className="bg-gray-800 border-t border-gray-700 p-4 flex flex-wrap items-center gap-3">
           <span className="text-gray-300">
-            {state.selectedFiles.length} fichier(s) sélectionné(s)
+            {state.selectedFiles.length} élément(s) sélectionné(s)
           </span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {singleSelection && !singleSelection.isdir && (
+              <button
+                type="button"
+                className="btn-secondary inline-flex items-center"
+                onClick={() => openPreview(singleSelection)}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                Aperçu
+              </button>
+            )}
+            {singleSelection && (
+              <button
+                type="button"
+                className="btn-secondary inline-flex items-center"
+                onClick={() => openRename(singleSelection)}
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Renommer
+              </button>
+            )}
             <button
-              className="btn-secondary"
+              type="button"
+              className="btn-secondary inline-flex items-center disabled:opacity-50"
               onClick={() => {
-                // Télécharger le premier fichier sélectionné (pour l'instant)
-                const selectedFile = state.files.find(f => f.name === state.selectedFiles[0]);
-                if (selectedFile) handleDownload(selectedFile);
+                if (singleSelection && !singleSelection.isdir) handleDownload(singleSelection);
               }}
-              disabled={state.selectedFiles.length !== 1}
+              disabled={!singleSelection || Boolean(singleSelection.isdir)}
             >
               <Download className="w-4 h-4 mr-2" />
               Télécharger
             </button>
             <button
-              className="btn-secondary text-red-400 hover:text-red-300"
+              type="button"
+              className="btn-secondary inline-flex items-center text-red-400 hover:text-red-300"
               onClick={openDeleteModal}
             >
               <Trash2 className="w-4 h-4 mr-2" />
@@ -707,7 +828,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
               Êtes-vous sûr de vouloir supprimer {state.selectedFiles.length} élément(s) ?
               <br />
               <span className="text-yellow-400 text-sm">
-                ⚠️ Les dossiers seront supprimés avec tout leur contenu
+                Les dossiers seront supprimés avec tout leur contenu.
               </span>
               <br />
               <span className="text-red-400 text-sm">Cette action est irréversible.</span>
@@ -725,6 +846,95 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ apiService, user }) 
                 disabled={state.isLoading}
               >
                 {state.isLoading ? 'Suppression...' : 'Supprimer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {state.previewFile && (
+        <FilePreviewModal
+          file={state.previewFile}
+          apiService={apiService}
+          onClose={() => setState(prev => ({ ...prev, previewFile: null }))}
+          onRename={() => {
+            if (state.previewFile) openRename(state.previewFile);
+          }}
+          onDownload={() => apiService.downloadFile(state.previewFile!.path, state.previewFile!.name)}
+        />
+      )}
+
+      {state.renameTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rename-title"
+            className="bg-gray-800 rounded-lg p-6 w-full max-w-md border border-gray-700"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                setState(prev => ({ ...prev, renameTarget: null, renameValue: '', renameError: null }));
+              }
+            }}
+          >
+            <h3 id="rename-title" className="text-lg font-semibold text-white mb-2">
+              Renommer
+            </h3>
+            <p className="text-sm text-gray-400 mb-4">
+              {state.renameTarget.isdir
+                ? 'Le dossier et son contenu prennent le nouveau nom. Cela peut prendre un moment.'
+                : 'Le fichier reste au même endroit, sous son nouveau nom.'}
+            </p>
+            {state.renameError && (
+              <p className="text-sm text-red-400 mb-3">{state.renameError}</p>
+            )}
+            <input
+              type="text"
+              value={state.renameValue}
+              onChange={(e) => setState(prev => ({ ...prev, renameValue: e.target.value, renameError: null }))}
+              className="input-standard w-full mb-4"
+              autoFocus
+              autoComplete="off"
+              disabled={state.isRenaming}
+              onFocus={(e) => {
+                const value = e.target.value;
+                const dot = state.renameTarget?.isdir ? -1 : value.lastIndexOf('.');
+                if (dot > 0) {
+                  e.target.setSelectionRange(0, dot);
+                } else {
+                  e.target.select();
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRename();
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setState(prev => ({ ...prev, renameTarget: null, renameValue: '', renameError: null }));
+                }
+              }}
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setState(prev => ({
+                  ...prev,
+                  renameTarget: null,
+                  renameValue: '',
+                  renameError: null
+                }))}
+              >
+                Annuler
+              </button>
+              <button
+                className="btn-primary disabled:opacity-50"
+                onClick={handleRename}
+                disabled={state.isRenaming || !state.renameValue.trim() || state.renameValue.trim() === state.renameTarget.name}
+              >
+                {state.isRenaming ? 'Renommage...' : 'Renommer'}
               </button>
             </div>
           </div>

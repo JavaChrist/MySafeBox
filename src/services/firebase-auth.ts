@@ -8,6 +8,8 @@ import {
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
+  indexedDBLocalPersistence,
+  type Persistence,
   type User,
   type AuthError
 } from 'firebase/auth';
@@ -25,8 +27,7 @@ export class FirebaseAuthService {
   // Connexion avec email/mot de passe
   async login(email: string, password: string, rememberMe: boolean = false): Promise<AuthUser> {
     try {
-      // Persistance: session par défaut, locale si "se souvenir de moi"
-      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      await this.applyPersistence(rememberMe);
 
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -55,8 +56,9 @@ export class FirebaseAuthService {
   }
 
   // Inscription avec email/mot de passe  
-  async register(email: string, password: string, displayName: string): Promise<AuthUser> {
+  async register(email: string, password: string, displayName: string, rememberMe: boolean = false): Promise<AuthUser> {
     try {
+      await this.applyPersistence(rememberMe);
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
@@ -135,6 +137,24 @@ export class FirebaseAuthService {
       };
     }
     return null;
+  }
+
+  // Session de l'onglet, ou stockage durable du navigateur si "se souvenir de moi"
+  private async applyPersistence(rememberMe: boolean): Promise<void> {
+    const candidates: Persistence[] = rememberMe
+      ? [indexedDBLocalPersistence, browserLocalPersistence]
+      : [browserSessionPersistence];
+
+    let lastError: unknown;
+    for (const persistence of candidates) {
+      try {
+        await setPersistence(auth, persistence);
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('Erreur d\'authentification');
   }
 
   // Messages d'erreur traduits

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Globe, Wifi } from 'lucide-react';
+import { Home, Globe, Wifi, Flame } from 'lucide-react';
 import { isProduction } from '../config/environment';
 
 interface ConnectionStatusProps {
@@ -65,7 +65,7 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ className = 
 
       {/* Indicateur Firebase - Compact */}
       <div className="inline-flex items-center gap-1 px-1.5 py-1 rounded-md bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs">
-        <span>🔥</span>
+        <Flame className="w-3.5 h-3.5" aria-hidden="true" />
         <span className="hidden sm:inline">Firebase</span>
       </div>
     </div>

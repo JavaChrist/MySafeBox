@@ -117,3 +117,40 @@ export const sortFiles = (files: any[], sortBy: 'name' | 'size' | 'date' | 'type
 
   return sorted;
 };
+
+export type PreviewKind = 'image' | 'pdf' | 'video' | 'audio' | 'text' | 'unsupported';
+
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+const VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogv', 'mov'];
+const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'];
+const TEXT_EXTENSIONS = [
+  'txt', 'md', 'json', 'csv', 'xml', 'log', 'js', 'ts', 'tsx', 'jsx',
+  'css', 'html', 'htm', 'yml', 'yaml', 'ini', 'cfg', 'conf', 'py', 'php', 'sql', 'sh'
+];
+
+export const getPreviewKind = (filename: string): PreviewKind => {
+  const ext = filename.toLowerCase().split('.').pop() || '';
+  if (IMAGE_EXTENSIONS.includes(ext)) return 'image';
+  if (ext === 'pdf') return 'pdf';
+  if (VIDEO_EXTENSIONS.includes(ext)) return 'video';
+  if (AUDIO_EXTENSIONS.includes(ext)) return 'audio';
+  if (TEXT_EXTENSIONS.includes(ext)) return 'text';
+  return 'unsupported';
+};
+
+export const validateEntryName = (name: string): string => {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error('Veuillez entrer un nom');
+  }
+  if (trimmed === '.' || trimmed === '..' || trimmed === '.keep') {
+    throw new Error('Ce nom est réservé');
+  }
+  if (trimmed.length > 200) {
+    throw new Error('Le nom est trop long');
+  }
+  if (/[\\/]/.test(trimmed) || /[\u0000-\u001F\u007F]/.test(trimmed)) {
+    throw new Error('Le nom contient un caractère interdit');
+  }
+  return trimmed;
+};

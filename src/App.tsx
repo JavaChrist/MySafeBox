@@ -30,30 +30,6 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Déconnexion automatique uniquement sur desktop à la fermeture d'onglet/app
-  useEffect(() => {
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-      return;
-    }
-
-    const handleBeforeUnload = async () => {
-      if (user) {
-        console.log('🚪 Fermeture de l\'app (desktop) - Déconnexion automatique');
-        try {
-          await firebaseAuthService.logout();
-        } catch (error) {
-          console.error('Erreur déconnexion automatique:', error);
-        }
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [user]);
-
   // Détection PWA et ajustement safe area
   useEffect(() => {
     const isPWA = window.matchMedia('(display-mode: standalone)').matches ||

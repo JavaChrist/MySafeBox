@@ -44,6 +44,16 @@ export class APIService {
     return await this.storageService.getDownloadUrl(path);
   }
 
+  // Lire un fichier texte pour l'afficher dans l'application
+  async getTextPreview(path: string): Promise<string> {
+    return await this.storageService.getTextPreview(path);
+  }
+
+  // Renommer un fichier ou un dossier
+  async renameItem(path: string, newName: string, isDirectory: boolean): Promise<void> {
+    return await this.storageService.renameItem(path, newName, isDirectory);
+  }
+
   // Obtenir les métadonnées d'un fichier
   async getFileMetadata(path: string): Promise<any> {
     return await this.storageService.getFileMetadata(path);

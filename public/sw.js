@@ -62,6 +62,11 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Les fichiers Firebase et les autres sites ne doivent pas passer par le cache.
+  if (url.hostname !== self.location.hostname) {
+    return;
+  }
+
   // Stratégie Cache First pour les assets statiques
   if (
     STATIC_ASSETS.includes(url.pathname) ||
@@ -88,11 +93,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Stratégie Network First pour les API calls FileStation
-  if (
-    url.pathname.includes("/webapi/") ||
-    url.hostname !== self.location.hostname
-  ) {
+  // Ancienne API locale, conservée uniquement sur le même site.
+  if (url.pathname.includes("/webapi/")) {
     event.respondWith(
       fetch(request)
         .then((response) => {

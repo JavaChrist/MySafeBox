@@ -1,6 +1,28 @@
 import React, { useState } from 'react';
-import { AlertCircle, RefreshCw, UserPlus, Mail, User, Lock, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, RefreshCw, UserPlus, Mail, User, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { firebaseAuthService, type AuthUser } from '../services/firebase-auth';
+
+const REMEMBERED_EMAIL_KEY = 'mysafebox.rememberedEmail';
+
+function readRememberedEmail(): string {
+  try {
+    return localStorage.getItem(REMEMBERED_EMAIL_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function storeRememberedEmail(email: string, rememberMe: boolean) {
+  try {
+    if (rememberMe) {
+      localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+    } else {
+      localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+    }
+  } catch {
+    // Le navigateur peut refuser le stockage local.
+  }
+}
 
 interface LoginFormProps {
   onLogin: (user: AuthUser) => void;
@@ -20,8 +42,9 @@ interface LoginFormState {
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
+  const rememberedEmail = readRememberedEmail();
   const [state, setState] = useState<LoginFormState>({
-    email: '',
+    email: rememberedEmail,
     password: '',
     displayName: '',
     isLoading: false,
@@ -30,7 +53,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
     showPassword: false,
     resetPasswordMode: false,
     resetSuccess: false,
-    rememberMe: false
+    rememberMe: rememberedEmail.length > 0
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,14 +76,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
       let user: AuthUser;
 
       if (state.isRegisterMode) {
-        // Inscription
         user = await firebaseAuthService.register(
           state.email.trim(),
           state.password,
-          state.displayName.trim()
+          state.displayName.trim(),
+          state.rememberMe
         );
       } else {
-        // Connexion
         user = await firebaseAuthService.login(
           state.email.trim(),
           state.password,
@@ -68,6 +90,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         );
       }
 
+      storeRememberedEmail(state.email.trim(), state.rememberMe);
       onLogin(user);
     } catch (error) {
       console.error('Auth error:', error);
@@ -89,15 +112,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
     };
 
   const toggleMode = () => {
-    setState(prev => ({
-      ...prev,
-      isRegisterMode: !prev.isRegisterMode,
-      error: null,
-      email: '',
-      password: '',
-      displayName: '',
-      showPassword: false
-    }));
+    setState(prev => {
+      const rememberedEmail = readRememberedEmail();
+      const returningToLogin = prev.isRegisterMode;
+      return {
+        ...prev,
+        isRegisterMode: !prev.isRegisterMode,
+        error: null,
+        email: returningToLogin ? rememberedEmail : '',
+        password: '',
+        displayName: '',
+        showPassword: false,
+        rememberMe: returningToLogin ? rememberedEmail.length > 0 : prev.rememberMe
+      };
+    });
   };
 
   const togglePasswordVisibility = () => {
@@ -160,8 +188,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
           {state.resetSuccess ? (
             /* Message de succès reset password */
             <div className="text-center">
-              <div className="text-green-400 mb-4">
-                ✅ Email envoyé avec succès !
+              <div className="flex items-center justify-center gap-2 text-green-400 mb-4">
+                <CheckCircle2 className="w-5 h-5" />
+                Email envoyé avec succès
               </div>
               <p className="text-gray-300 mb-6">
                 Vérifiez votre boîte email et suivez les instructions pour réinitialiser votre mot de passe.
@@ -277,7 +306,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                     type="checkbox"
                     checked={state.rememberMe}
                     onChange={(e) => setState(prev => ({ ...prev, rememberMe: e.target.checked }))}
-                    className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 shrink-0 accent-blue-500"
                     disabled={state.isLoading}
                   />
                   <span>Se souvenir de moi</span>

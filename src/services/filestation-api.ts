@@ -5,12 +5,15 @@ import {
   deleteObject,
   listAll,
   getMetadata,
-
+  getBlob,
+  updateMetadata,
+  type StorageReference,
   type UploadMetadata
 } from 'firebase/storage';
-import { storage } from '../config/firebase';
+import { auth, storage } from '../config/firebase';
 import type { FileItem } from '../types';
 import { CONFIG } from '../config/environment';
+import { validateEntryName } from '../utils/fileHelpers';
 
 export interface FirebaseFileItem extends FileItem {
   downloadUrl?: string;
@@ -383,6 +386,184 @@ export class FirebaseStorageService {
       console.error('Erreur calcul espace utilisé:', error);
       return 0;
     }
+  }
+
+  async getTextPreview(path: string, maxBytes: number = 2 * 1024 * 1024): Promise<string> {
+    try {
+      const fileRef = ref(storage, this.getUserPath(path));
+      const metadata = await getMetadata(fileRef);
+      if ((metadata.size || 0) > maxBytes) {
+        throw new Error('Ce fichier est trop volumineux pour être affiché ici.');
+      }
+      const blob = await getBlob(fileRef);
+      return await blob.text();
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Ce fichier est trop volumineux')) {
+        throw error;
+      }
+      console.error('Erreur de lecture:', error);
+      throw new Error('Impossible d\'afficher ce fichier');
+    }
+  }
+
+  async renameItem(path: string, newName: string, isDirectory: boolean): Promise<void> {
+    const safeName = validateEntryName(newName);
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+    const slash = cleanPath.lastIndexOf('/');
+    const currentName = slash === -1 ? cleanPath : cleanPath.slice(slash + 1);
+    const parent = slash === -1 ? '' : cleanPath.slice(0, slash);
+
+    if (!cleanPath || safeName === currentName) {
+      return;
+    }
+
+    const newPath = parent ? `${parent}/${safeName}` : safeName;
+    if (await this.entryExists(newPath)) {
+      throw new Error('Un élément porte déjà ce nom');
+    }
+
+    if (!isDirectory) {
+      const source = this.getUserPath(cleanPath);
+      const destination = this.getUserPath(newPath);
+      try {
+        await this.copyObject(source, destination, safeName);
+      } catch (error) {
+        console.error('Erreur de copie:', error);
+        throw error instanceof Error ? error : new Error('Impossible de renommer cet élément');
+      }
+      try {
+        await deleteObject(ref(storage, source));
+      } catch (error) {
+        console.error('Erreur de suppression après renommage:', error);
+        throw new Error('Le nouveau nom est en place, mais l’ancien fichier n’a pas pu être retiré.');
+      }
+      return;
+    }
+
+    const sourcePrefix = this.getUserPath(cleanPath).replace(/\/$/, '');
+    const targetPrefix = this.getUserPath(newPath).replace(/\/$/, '');
+    const refs = await this.collectRefs(sourcePrefix);
+    if (refs.length === 0) {
+      throw new Error('Ce dossier est introuvable');
+    }
+
+    const copied: string[] = [];
+    try {
+      for (const item of refs) {
+        const relative = item.fullPath.startsWith(sourcePrefix)
+          ? item.fullPath.slice(sourcePrefix.length)
+          : '';
+        if (!relative.startsWith('/')) {
+          throw new Error('Chemin de fichier inattendu');
+        }
+        const destination = `${targetPrefix}${relative}`;
+        await this.copyObject(item.fullPath, destination);
+        copied.push(destination);
+      }
+    } catch (error) {
+      await Promise.all(
+        copied.map((copiedPath) => deleteObject(ref(storage, copiedPath)).catch(() => undefined))
+      );
+      if (error instanceof Error && error.message === 'Chemin de fichier inattendu') {
+        throw error;
+      }
+      throw new Error('Impossible de renommer cet élément');
+    }
+
+    try {
+      await Promise.all(refs.map((item) => deleteObject(item)));
+    } catch (error) {
+      console.error('Erreur de suppression après renommage:', error);
+      throw new Error('Le nouveau nom est en place, mais l’ancien contenu n’a pas pu être entièrement retiré.');
+    }
+  }
+
+  private async entryExists(relativePath: string): Promise<boolean> {
+    const base = this.getUserPath(relativePath).replace(/\/$/, '');
+    try {
+      await getMetadata(ref(storage, base));
+      return true;
+    } catch {
+      // Ce n'est pas un fichier.
+    }
+    try {
+      await getMetadata(ref(storage, `${base}/.keep`));
+      return true;
+    } catch {
+      // Pas de dossier vide à ce nom.
+    }
+    try {
+      const listed = await listAll(ref(storage, base));
+      return listed.items.length > 0 || listed.prefixes.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  private async copyObject(fromFullPath: string, toFullPath: string, originalName?: string): Promise<void> {
+    const user = auth.currentUser;
+    const bucket = storage.app.options.storageBucket;
+    if (!user || !bucket) {
+      throw new Error('Aucun utilisateur connecté');
+    }
+
+    const sourceRef = ref(storage, fromFullPath);
+    const [metadata, downloadUrl] = await Promise.all([
+      getMetadata(sourceRef),
+      getDownloadURL(sourceRef)
+    ]);
+    const token = await user.getIdToken();
+    const customMetadata: Record<string, string> = {};
+    for (const [key, value] of Object.entries(metadata.customMetadata || {})) {
+      if (typeof value === 'string') customMetadata[key] = value;
+    }
+
+    const response = await fetch('/api/rename-storage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        bucket,
+        from: fromFullPath,
+        to: toFullPath,
+        downloadUrl,
+        contentType: metadata.contentType,
+        customMetadata
+      })
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      const error = new Error('Impossible de renommer cet élément') as Error & { status?: number; detail?: string };
+      error.status = response.status;
+      error.detail = payload && typeof payload.detail === 'string' ? payload.detail : '';
+      throw error;
+    }
+    await this.rememberOriginalName(toFullPath, originalName);
+  }
+
+  private async rememberOriginalName(fullPath: string, originalName?: string): Promise<void> {
+    if (!originalName) return;
+    try {
+      const metadata = await getMetadata(ref(storage, fullPath));
+      const customMetadata: Record<string, string> = {};
+      for (const [key, value] of Object.entries(metadata.customMetadata || {})) {
+        if (typeof value === 'string') customMetadata[key] = value;
+      }
+      customMetadata.originalName = originalName;
+      await updateMetadata(ref(storage, fullPath), { customMetadata });
+    } catch (error) {
+      console.error('Métadonnées non mises à jour:', error);
+    }
+  }
+
+  private async collectRefs(storagePath: string): Promise<StorageReference[]> {
+    const result = await listAll(ref(storage, storagePath));
+    const items = [...result.items];
+    for (const prefix of result.prefixes) {
+      const nested = await this.collectRefs(prefix.fullPath);
+      items.push(...nested);
+    }
+    return items;
   }
 
   // Lister tous les fichiers récursivement

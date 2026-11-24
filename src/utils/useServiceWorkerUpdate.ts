@@ -14,7 +14,7 @@ export function useServiceWorkerUpdate(): SWUpdateState {
 
   // Register the SW and detect when a new version is waiting
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
+    if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
 
     let registration: ServiceWorkerRegistration | null = null;
 
