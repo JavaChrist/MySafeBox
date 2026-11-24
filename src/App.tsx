@@ -3,13 +3,12 @@ import { LoginForm } from './components/LoginForm';
 import { Dashboard } from './components/Dashboard';
 import { firebaseAuthService, type AuthUser } from './services/firebase-auth';
 import { APIService } from './services/api';
-import { useServiceWorkerUpdate } from './utils/useServiceWorkerUpdate';
+import { UpdatePrompt } from './components/UpdatePrompt';
 
 function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [apiService, setApiService] = useState<APIService | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  useServiceWorkerUpdate();
 
   // Écouter les changements d'authentification Firebase
   useEffect(() => {
@@ -63,9 +62,9 @@ function App() {
     }
   };
 
-  // Chargement initial
+  let screen;
   if (isLoading) {
-    return (
+    screen = (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
@@ -73,20 +72,23 @@ function App() {
         </div>
       </div>
     );
+  } else if (!user || !apiService) {
+    screen = <LoginForm onLogin={handleLogin} />;
+  } else {
+    screen = (
+      <Dashboard
+        user={user}
+        apiService={apiService}
+        onLogout={handleLogout}
+      />
+    );
   }
 
-  // Si pas d'utilisateur connecté, afficher le formulaire de connexion
-  if (!user || !apiService) {
-    return <LoginForm onLogin={handleLogin} />;
-  }
-
-  // Dashboard principal avec FileExplorer
   return (
-    <Dashboard
-      user={user}
-      apiService={apiService}
-      onLogout={handleLogout}
-    />
+    <>
+      {screen}
+      <UpdatePrompt />
+    </>
   );
 }
 

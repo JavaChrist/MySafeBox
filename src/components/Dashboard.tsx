@@ -6,8 +6,6 @@ import { ConnectionStatus } from './ConnectionStatus';
 import { FileExplorer } from './FileExplorer';
 import { InactivityWarning } from './InactivityWarning';
 import { useInactivityTimer } from '../utils/useInactivityTimer';
-import { useServiceWorkerUpdate } from '../utils/useServiceWorkerUpdate';
-
 interface DashboardProps {
   user: AuthUser;
   apiService: APIService;
@@ -17,8 +15,6 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout }) => {
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(60);
-  const [updateLater, setUpdateLater] = useState(false);
-  const { updateReady, updating, update } = useServiceWorkerUpdate();
   const logoutRef = useRef(onLogout);
   logoutRef.current = onLogout;
 
@@ -119,34 +115,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, apiService, onLogout
         onLogout={onLogout}
       />
 
-      {updateReady && !updateLater && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
-          <div className="card max-w-md w-full" role="dialog" aria-modal="true" aria-labelledby="update-title">
-            <h3 id="update-title" className="text-lg font-semibold text-white mb-2">Nouvelle version disponible</h3>
-            <p className="text-gray-300 mb-6">
-              Une mise à jour de MySafeBox est prête.
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={update}
-                disabled={updating}
-                className="btn-primary flex-1 disabled:opacity-50"
-              >
-                {updating ? 'Mise à jour...' : 'Mettre à jour'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setUpdateLater(true)}
-                disabled={updating}
-                className="btn-secondary flex-1 disabled:opacity-50"
-              >
-                Plus tard
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

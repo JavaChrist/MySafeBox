@@ -24,7 +24,8 @@ Ces parcours sont branchés dans les écrans et appellent Firebase.
 - **Dossiers.** Création d’un dossier après saisie de son nom, dans une fenêtre de l’application.
 - **Téléchargement.** Depuis l’aperçu, depuis la ligne d’un fichier en vue liste, ou depuis la barre du bas pour un seul fichier sélectionné.
 - **Suppression.** Un ou plusieurs éléments sélectionnés, après confirmation dans une fenêtre de l’application. Le message prévient que le contenu d’un dossier part avec lui.
-- **Téléphone.** L’interface s’adapte au petit écran. Un manifeste et ses icônes permettent de l’ajouter à l’écran d’accueil. En version construite pour la production, un service worker est enregistré et une fenêtre propose « Mettre à jour » ou « Plus tard » lorsqu’une nouvelle version est prête.
+- **Téléphone.** L’interface s’adapte au petit écran. Un manifeste et ses icônes permettent de l’ajouter à l’écran d’accueil. En version construite pour la production, un service worker est enregistré.
+- **Mises à jour.** Chaque construction reçoit un numéro de version, inscrit dans `sw.js` et publié dans `/version.json`. L’application le vérifie à l’ouverture, au retour sur l’onglet, puis chaque minute. Quand un nouveau déploiement est en ligne, une fenêtre propose « Mettre à jour » ou « Plus tard », sur l’écran de connexion comme dans le coffre. La nouvelle version n’est activée qu’après un clic sur « Mettre à jour », suivi d’un rechargement de la page. « Plus tard » est mémorisé jusqu’à la fermeture de l’onglet ou jusqu’à la version suivante.
 - **Repère d’environnement.** Un badge indique « DEV » pendant le développement local et « CLOUD » dans une version de production. Il reflète le mode de construction, pas un test de connexion réel.
 
 ### Partielles
@@ -35,14 +36,14 @@ Ces parcours sont branchés dans les écrans et appellent Firebase.
 - **Renommage et déplacement de gros contenus.** L’opération recopie chaque fichier puis retire l’original. Un dossier volumineux peut prendre du temps, et chaque fichier est limité à 100 Mo.
 - **Date des dossiers.** La date affichée pour un dossier est le moment où la liste est chargée, pas une date d’enregistrement.
 - **Types de fichiers.** Une liste de types autorisés existe dans la configuration, mais l’envoi ne l’applique pas. Seule la limite de 100 Mo est contrôlée.
-- **Mise en cache hors ligne.** Le service worker prévoit une mise en cache, puis efface tous les caches au moment de son activation. Le fonctionnement hors ligne n’est donc pas fiable.
+- **Hors ligne.** Sans connexion, seule la page de l’application et ses icônes restent disponibles depuis le cache. Les fichiers du coffre, eux, ne sont jamais mis en cache et demandent une connexion.
 - **Nom affiché et espace occupé.** Le code sait mettre à jour le nom du compte et calculer le volume utilisé. Aucun écran ne propose ces actions.
 
 ### Présentes dans le dépôt, non utilisées par l’application actuelle
 
 D’anciens documents (`MYSAFEBOX-COMPLETE-SPECIFICATION.md`, `RECONSTRUCTION-CONTEXT.md`, `DEBUG-PRODUCTION-DEMAIN.md`, `EMAIL-GUIDE-MYSAFEBOX.md`) décrivent un coffre-fort familial relié à un NAS Synology et à son API FileStation. Le code des écrans et des services n’appelle plus cette API.
 
-Il en reste des traces : le nom du fichier `filestation-api.ts`, un type de compte WebDAV non utilisé, un proxy de développement local, la description « NAS Synology » dans la page d’accueil et le manifeste, et des commentaires du service worker. Ces traces ne constituent pas une fonction disponible.
+Il en reste des traces : le nom du fichier `filestation-api.ts`, un type de compte WebDAV non utilisé, un proxy de développement local, et la description « NAS Synology » dans la page d’accueil et le manifeste. Ces traces ne constituent pas une fonction disponible.
 
 ## Fonctionnement côté serveur
 

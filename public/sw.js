@@ -1,11 +1,11 @@
-// MySafeBox Service Worker - PWA iPhone Ready - FORCE UPDATE
-const CACHE_NAME = "mysafebox-v2.0.0-FORCE";
-const STATIC_CACHE = "mysafebox-static-v2-FORCE";
-const DYNAMIC_CACHE = "mysafebox-dynamic-v2-FORCE";
+// MySafeBox Service Worker
+// Le repère ci-dessous est remplacé à chaque construction (vite.config.ts) :
+// le fichier change donc à chaque déploiement et le navigateur détecte la nouvelle version.
+const BUILD_ID = "__MYSAFEBOX_BUILD_ID__";
+const STATIC_CACHE = `mysafebox-static-${BUILD_ID}`;
+const PAGE_CACHE = `mysafebox-pages-${BUILD_ID}`;
 
-// Assets à mettre en cache statique
 const STATIC_ASSETS = [
-  "/",
   "/index.html",
   "/MySafeBoxHeader.png",
   "/logo-180.png",
@@ -15,139 +15,79 @@ const STATIC_ASSETS = [
   "/manifest.json",
 ];
 
-// Installation du service worker
+// Pas de skipWaiting ici : la nouvelle version attend le clic sur « Mettre à jour ».
 self.addEventListener("install", (event) => {
-  console.log("MySafeBox SW: Installing...");
-
   event.waitUntil(
-    caches
-      .open(STATIC_CACHE)
-      .then((cache) => {
-        console.log("MySafeBox SW: Caching static assets");
-        return cache.addAll(STATIC_ASSETS);
-      })
-      .then(() => {
-        console.log("MySafeBox SW: Installation complete");
-        return self.skipWaiting(); // Activation immédiate
-      })
+    caches.open(STATIC_CACHE).then((cache) => cache.addAll(STATIC_ASSETS))
   );
 });
 
-// Activation du service worker
 self.addEventListener("activate", (event) => {
-  console.log("MySafeBox SW: Activating - FORCE CACHE CLEAR...");
-
   event.waitUntil(
     caches
       .keys()
-      .then((cacheNames) => {
-        console.log("MySafeBox SW: Found caches:", cacheNames);
-        // SUPPRIME TOUS LES ANCIENS CACHES
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            console.log("MySafeBox SW: FORCE DELETING cache:", cacheName);
-            return caches.delete(cacheName);
-          })
-        );
-      })
-      .then(() => {
-        console.log("MySafeBox SW: ALL CACHES CLEARED - Activation complete");
-        return self.clients.claim(); // Prise de contrôle immédiate
-      })
+      .then((names) =>
+        Promise.all(
+          names
+            .filter((name) => name !== STATIC_CACHE && name !== PAGE_CACHE)
+            .map((name) => caches.delete(name))
+        )
+      )
+      .then(() => self.clients.claim())
   );
 });
 
-// Stratégie de cache pour les requêtes
 self.addEventListener("fetch", (event) => {
   const { request } = event;
+  if (request.method !== "GET") return;
+
   const url = new URL(request.url);
-
-  // Les fichiers Firebase et les autres sites ne doivent pas passer par le cache.
-  if (url.hostname !== self.location.hostname) {
-    return;
-  }
-
-  // Stratégie Cache First pour les assets statiques
+  // Firebase, les autres sites et le serveur de l'application ne passent jamais par le cache.
+  if (url.origin !== self.location.origin) return;
   if (
-    STATIC_ASSETS.includes(url.pathname) ||
-    url.pathname.startsWith("/assets/") ||
-    url.pathname.endsWith(".js") ||
-    url.pathname.endsWith(".css") ||
-    url.pathname.endsWith(".png") ||
-    url.pathname.endsWith(".ico")
+    url.pathname.startsWith("/api/") ||
+    url.pathname === "/version.json" ||
+    url.pathname === "/sw.js"
   ) {
-    event.respondWith(
-      caches.match(request).then((response) => {
-        return (
-          response ||
-          fetch(request).then((fetchResponse) => {
-            const responseClone = fetchResponse.clone();
-            caches
-              .open(STATIC_CACHE)
-              .then((cache) => cache.put(request, responseClone));
-            return fetchResponse;
-          })
-        );
-      })
-    );
     return;
   }
 
-  // Ancienne API locale, conservée uniquement sur le même site.
-  if (url.pathname.includes("/webapi/")) {
+  // Pages : réseau d'abord, pour toujours servir la version en ligne ; le cache sert hors connexion.
+  if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache seulement les réponses GET réussies
-          if (request.method === "GET" && response.status === 200) {
-            const responseClone = response.clone();
-            caches
-              .open(DYNAMIC_CACHE)
-              .then((cache) => cache.put(request, responseClone));
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(PAGE_CACHE).then((cache) => cache.put("/index.html", copy));
           }
           return response;
         })
-        .catch(() => {
-          // Fallback vers cache en cas d'erreur réseau
-          return caches.match(request);
-        })
+        .catch(() =>
+          caches.match("/index.html").then((cached) => cached || Response.error())
+        )
     );
     return;
   }
 
-  // Stratégie Cache First par défaut avec Network fallback
+  // Fichiers construits (noms uniques à chaque version) et icônes : cache d'abord.
   event.respondWith(
-    caches.match(request).then((response) => {
-      return (
-        response ||
-        fetch(request)
-          .then((fetchResponse) => {
-            const responseClone = fetchResponse.clone();
-            caches
-              .open(DYNAMIC_CACHE)
-              .then((cache) => cache.put(request, responseClone));
-            return fetchResponse;
-          })
-          .catch(() => {
-            // Fallback vers page principale pour les routes SPA
-            if (request.mode === "navigate") {
-              return caches.match("/index.html");
-            }
-          })
-      );
-    })
+    caches.match(request).then(
+      (cached) =>
+        cached ||
+        fetch(request).then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+    )
   );
 });
 
-// Messages du service worker (pour debug)
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
-  }
-
-  if (event.data && event.data.type === "GET_VERSION") {
-    event.ports[0].postMessage({
-      version: CACHE_NAME,
-    });
   }
 });
